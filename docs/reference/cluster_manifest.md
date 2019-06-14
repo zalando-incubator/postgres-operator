@@ -199,6 +199,9 @@ explanation of `ttl` and `loop_wait` parameters.
   automatically created by Patroni for cluster members and permanent replication
   slots. Optional.
 
+* **standby_cluster**
+  initialises cluster as a standby creating a cascading replication, where elected master is streaming from specified remote location
+
 ## Postgres container resources
 
 Those parameters define [CPU and memory requests and

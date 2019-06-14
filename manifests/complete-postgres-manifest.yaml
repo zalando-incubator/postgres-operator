@@ -70,6 +70,15 @@ spec:
   # run periodic backups with k8s cron jobs
   # enableLogicalBackup: true
   # logicalBackupSchedule: "30 00 * * *"
+  #
+  # # standby cluster example.
+  # # See https://patroni.readthedocs.io/en/latest/replica_bootstrap.html#standby-cluster.
+  #
+  # standby_cluster:
+  #   host: master.hostname
+  #   port: "5432"
+  #   primary_slot_name: dmz2
+
   maintenanceWindows:
   - 01:00-06:00 #UTC
   - Sat:00:00-04:00

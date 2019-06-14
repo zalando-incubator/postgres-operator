@@ -111,6 +111,19 @@ type Patroni struct {
 	RetryTimeout         uint32                       `json:"retry_timeout"`
 	MaximumLagOnFailover float32                      `json:"maximum_lag_on_failover"` // float32 because https://github.com/kubernetes/kubernetes/issues/30213
 	Slots                map[string]map[string]string `json:"slots"`
+	StandbyCluster       *PatroniStandbyCluster        `json:"standby_cluster"`
+}
+
+// PatroniStandbyCluster container Patroni's standby_cluster
+// based on https://github.com/zalando/patroni/blob/929ff08bfde51b28cf90d7bea92db0a5838a4284/patroni/config.py#L50-L58
+type PatroniStandbyCluster struct {
+	PrimarySlotName       string   `json:"primary_slot_name"`
+	CreateReplicaMethods  []string `json:"create_replica_methods"`
+	RestoreCommand        string   `json:"restore_command"`
+	ArchiveCleanupCommand string   `json:"archive_cleanup_command"`
+	RecoveryMinApplyDelay string   `json:"recovery_min_apply_delay"`
+	Host                  string   `json:"host"`
+	Port                  string   `json:"port"`
 }
 
 // CloneDescription describes which cluster the new should clone and up to which point in time
