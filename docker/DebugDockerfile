@@ -3,8 +3,14 @@ MAINTAINER Team ACID @ Zalando <team-acid@zalando.de>
 
 # We need root certificates to deal with teams api over https
 RUN apk --no-cache add ca-certificates go git musl-dev
+
+RUN addgroup -g 1000 pgo
+RUN adduser -D -u 1000 -G pgo -g 'Postgres operator' pgo
+
+USER 1000:1000
+
 RUN go get github.com/derekparker/delve/cmd/dlv
 
 COPY build/* /
 
-CMD ["/root/go/bin/dlv", "--listen=:7777", "--headless=true", "--api-version=2", "exec", "/postgres-operator"]
+CMD ["/home/pgo/go/bin/dlv", "--listen=:7777", "--headless=true", "--api-version=2", "exec", "/postgres-operator"]

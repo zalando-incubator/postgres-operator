@@ -24,7 +24,7 @@ PKG := `go list ./... | grep -v /vendor/`
 
 ifeq ($(DEBUG),1)
 	DOCKERFILE = DebugDockerfile
-	DEBUG_POSTFIX := -debug
+	#DEBUG_POSTFIX := -debug
 	BUILD_FLAGS += -gcflags "-N -l"
 else
 	DOCKERFILE = Dockerfile

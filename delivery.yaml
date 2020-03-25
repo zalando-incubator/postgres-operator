@@ -23,10 +23,11 @@ pipeline:
             IS_PR_BUILD=${CDP_PULL_REQUEST_NUMBER+"true"}
             if [[ ${CDP_TARGET_BRANCH} == "master" && ${IS_PR_BUILD} != "true" ]]
             then
-              IMAGE=registry-write.opensource.zalan.do/acid/postgres-operator
+              IMAGE=registry-write.opensource.zalan.do/acid/postgres-operator-debug
             else
-              IMAGE=registry-write.opensource.zalan.do/acid/postgres-operator-test
+              IMAGE=registry-write.opensource.zalan.do/acid/postgres-operator-test-debug
             fi
+            export DEBUG=1
             export IMAGE
             make deps docker
         - desc: 'Run unit tests'
@@ -42,9 +43,9 @@ pipeline:
             IS_PR_BUILD=${CDP_PULL_REQUEST_NUMBER+"true"}
             if [[ ${CDP_TARGET_BRANCH} == "master" && ${IS_PR_BUILD} != "true" ]]
             then
-              IMAGE=registry-write.opensource.zalan.do/acid/postgres-operator
+              IMAGE=registry-write.opensource.zalan.do/acid/postgres-operator-debug
             else
-              IMAGE=registry-write.opensource.zalan.do/acid/postgres-operator-test
+              IMAGE=registry-write.opensource.zalan.do/acid/postgres-operator-test-debug
             fi
             export IMAGE
             make push
