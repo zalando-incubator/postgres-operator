@@ -603,6 +603,8 @@ func (c *Cluster) generatePodTemplate(
 		podSpec.PriorityClassName = priorityClassName
 	}
 
+	addVarRunVolume(&podSpec)
+
 	if additionalSecretMount != "" {
 		addSecretVolume(&podSpec, additionalSecretMount, additionalSecretMountPath)
 	}
@@ -1388,6 +1390,28 @@ func addShmVolume(podSpec *v1.PodSpec) {
 		})
 
 	podSpec.Containers[0].VolumeMounts = mounts
+	podSpec.Volumes = volumes
+}
+
+func addVarRunVolume(podSpec *v1.PodSpec) {
+	volumes := append(podSpec.Volumes, v1.Volume{
+		Name: "postgresql-run",
+		VolumeSource: v1.VolumeSource{
+			EmptyDir: &v1.EmptyDirVolumeSource{
+				Medium: "Memory",
+			},
+		},
+	})
+
+	for i := range podSpec.Containers {
+		mounts := append(podSpec.Containers[i].VolumeMounts,
+			v1.VolumeMount{
+				Name:      "postgresql-run",
+				MountPath: "/var/run/postgresql",
+			})
+		podSpec.Containers[i].VolumeMounts = mounts
+	}
+
 	podSpec.Volumes = volumes
 }
 
