@@ -439,6 +439,76 @@ func TestShmVolume(t *testing.T) {
 	}
 }
 
+func TestVarRunVolume(t *testing.T) {
+	testName := "TestVarRunVolume"
+	tests := []struct {
+		subTest   string
+		podSpec   *v1.PodSpec
+		varRunPos int
+	}{
+		{
+			subTest: "empty PodSpec",
+			podSpec: &v1.PodSpec{
+				Volumes: []v1.Volume{},
+				Containers: []v1.Container{
+					{
+						VolumeMounts: []v1.VolumeMount{},
+					},
+				},
+			},
+			varRunPos: 0,
+		},
+		{
+			subTest: "non empty PodSpec",
+			podSpec: &v1.PodSpec{
+				Volumes: []v1.Volume{{}},
+				Containers: []v1.Container{
+					{
+						VolumeMounts: []v1.VolumeMount{
+							{
+								Name:      "data",
+								ReadOnly:  false,
+								MountPath: "/data",
+							},
+						},
+					},
+				},
+			},
+			varRunPos: 1,
+		},
+	}
+	for _, tt := range tests {
+		varRunVolumeName := "postgresql-run"
+
+		numMounts := len(tt.podSpec.Containers[0].VolumeMounts)
+
+		addVarRunVolume(tt.podSpec)
+
+		volumeName := tt.podSpec.Volumes[tt.varRunPos].Name
+
+		if volumeName != varRunVolumeName {
+			t.Errorf("%s %s: Expected volume %s was not created, have %s instead",
+				testName, tt.subTest, varRunVolumeName, volumeName)
+		}
+
+		for i := range tt.podSpec.Containers {
+			volumeMountName := tt.podSpec.Containers[i].VolumeMounts[tt.varRunPos].Name
+
+			if volumeMountName != varRunVolumeName {
+				t.Errorf("%s %s: Expected mount %s was not created, have %s instead",
+					testName, tt.subTest, varRunVolumeName, volumeMountName)
+			}
+		}
+
+		numMountsCheck := len(tt.podSpec.Containers[0].VolumeMounts)
+
+		if numMountsCheck != numMounts+1 {
+			t.Errorf("Unexpected number of VolumeMounts: got %v instead of %v",
+				numMountsCheck, numMounts+1)
+		}
+	}
+}
+
 func TestCloneEnv(t *testing.T) {
 	testName := "TestCloneEnv"
 	tests := []struct {
