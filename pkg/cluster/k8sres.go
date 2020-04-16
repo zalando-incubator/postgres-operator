@@ -212,7 +212,7 @@ func fillResourceList(spec acidv1.ResourceDescription, defaults acidv1.ResourceD
 	return requests, nil
 }
 
-func generateSpiloJSONConfiguration(pg *acidv1.PostgresqlParam, patroni *acidv1.Patroni, pamRoleName string, logger *logrus.Entry) (string, error) {
+func generateSpiloJSONConfiguration(pg *acidv1.PostgresqlParam, patroni *acidv1.Patroni, pamRoleName string, logger *logrus.Entry, isNewCluster bool, initialPatroniConfig string) (string, error) {
 	config := spiloConfiguration{}
 
 	config.Bootstrap = pgBootstrap{}
@@ -282,8 +282,27 @@ PatroniInitDBParams:
 	if patroni.TTL != 0 {
 		config.Bootstrap.DCS.TTL = patroni.TTL
 	}
-	if patroni.Slots != nil {
-		config.Bootstrap.DCS.Slots = patroni.Slots
+
+	// The SPILO image is taking in account the 'Slots' settings **only** when bootstraping a new cluster.
+	// Therefore, updating this value in the SPILO_CONFIGURATION of the statefulset is pointless, but still
+	// required at cluster creation.
+	if isNewCluster {
+		if patroni.Slots != nil {
+			config.Bootstrap.DCS.Slots = patroni.Slots
+		}
+	} else {
+		oldestKnownPatroniCfg := acidv1.Patroni{}
+		if initialPatroniConfig == "" {
+			// when upgrading postgres-operator to this new version, existing StatefulSet won't have this annotation, so we're using the current specs
+			oldestKnownPatroniCfg = *patroni
+		} else {
+			if err := json.Unmarshal([]byte(initialPatroniConfig), &oldestKnownPatroniCfg); err != nil {
+				logger.Errorf("cannot decode initial patroni config from annotations: %s (%v)", err, initialPatroniConfig)
+				return "", err
+			}
+		}
+
+		config.Bootstrap.DCS.Slots = oldestKnownPatroniCfg.Slots
 	}
 	if patroni.SynchronousMode {
 		config.Bootstrap.DCS.SynchronousMode = patroni.SynchronousMode
@@ -975,7 +994,12 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*appsv1.Statef
 		}
 	}
 
-	spiloConfiguration, err := generateSpiloJSONConfiguration(&spec.PostgresqlParam, &spec.Patroni, c.OpConfig.PamRoleName, c.logger)
+	// c.Statefulset is not set when called from .createStatefulSet()
+	initialPatroniConfig := ""
+	if c.Statefulset != nil {
+		initialPatroniConfig = c.Statefulset.ObjectMeta.Annotations[initialPatroniConfigAnnotationKey]
+	}
+	spiloConfiguration, err := generateSpiloJSONConfiguration(&spec.PostgresqlParam, &spec.Patroni, c.OpConfig.PamRoleName, c.logger, c.isNewCluster(), initialPatroniConfig)
 	if err != nil {
 		return nil, fmt.Errorf("could not generate Spilo JSON configuration: %v", err)
 	}
@@ -1134,6 +1158,20 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*appsv1.Statef
 
 	numberOfInstances := c.getNumberOfInstances(spec)
 
+	ann := map[string]string{rollingUpdateStatefulsetAnnotationKey: "false"}
+	// Save the initial patroni config for later usage.
+	// Note: if the annotation is empty (during the upgrade path for example), set it to the current specs.
+	// see: issues#501
+	if c.isNewCluster() || initialPatroniConfig == "" {
+		x, err := json.Marshal(spec.Patroni)
+		if err != nil {
+			return nil, fmt.Errorf("could not JSON encode initial patroni config: %v", err)
+		}
+		ann[initialPatroniConfigAnnotationKey] = string(x)
+	} else {
+		ann[initialPatroniConfigAnnotationKey] = initialPatroniConfig
+	}
+
 	// the operator has domain-specific logic on how to do rolling updates of PG clusters
 	// so we do not use default rolling updates implemented by stateful sets
 	// that leaves the legacy "OnDelete" update strategy as the only option
@@ -1153,7 +1191,7 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*appsv1.Statef
 			Name:        c.statefulSetName(),
 			Namespace:   c.Namespace,
 			Labels:      c.labelsSet(true),
-			Annotations: map[string]string{rollingUpdateStatefulsetAnnotationKey: "false"},
+			Annotations: ann,
 		},
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:             &numberOfInstances,

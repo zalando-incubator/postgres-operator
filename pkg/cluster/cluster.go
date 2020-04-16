@@ -675,6 +675,14 @@ func (c *Cluster) Update(oldSpec, newSpec *acidv1.Postgresql) error {
 				c.logger.Errorf("could not sync statefulsets: %v", err)
 				updateFailed = true
 			}
+		} else {
+			// patroni configuration is not always reflected on the StatefulSet as they have
+			// different lifecycle (due to SPILO's implementation - see: issues#501) but they
+			// still need to be updated via the Patroni REST API.
+			if err := c.applyPatroniConfig(); err != nil {
+				c.logger.Errorf("could not apply patroni config: %v", err)
+				updateFailed = true
+			}
 		}
 	}()
 

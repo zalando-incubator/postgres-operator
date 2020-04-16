@@ -20,6 +20,7 @@ import (
 
 const (
 	rollingUpdateStatefulsetAnnotationKey = "zalando-postgres-operator-rolling-update-required"
+	initialPatroniConfigAnnotationKey     = "v1.acid.zalan.do/initial-patroni-config"
 )
 
 func (c *Cluster) listResources() error {

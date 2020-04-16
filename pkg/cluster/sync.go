@@ -339,6 +339,10 @@ func (c *Cluster) syncStatefulSet() error {
 		return fmt.Errorf("could not set cluster-wide PostgreSQL configuration options: %v", err)
 	}
 
+	if err := c.applyPatroniConfig(); err != nil {
+		return fmt.Errorf("could not apply patroni config: %v", err)
+	}
+
 	// if we get here we also need to re-create the pods (either leftovers from the old
 	// statefulset or those that got their configuration from the outdated statefulset)
 	if podsRollingUpdateRequired {
@@ -394,6 +398,35 @@ func (c *Cluster) checkAndSetGlobalPostgreSQLConfiguration() error {
 		c.logger.Warningf("could not patch postgres parameters with a pod %s: %v", podName, err)
 	}
 	return fmt.Errorf("could not reach Patroni API to set Postgres options: failed on every pod (%d total)",
+		len(pods))
+}
+
+// TODO: merge applyPatroniConfig() and checkAndSetGlobalPostgreSQLConfiguration()?
+func (c *Cluster) applyPatroniConfig() error {
+	var (
+		err  error
+		pods []v1.Pod
+	)
+
+	if pods, err = c.listPods(); err != nil {
+		return err
+	}
+	if len(pods) == 0 {
+		return fmt.Errorf("could not call Patroni API: cluster has no pods")
+	}
+	// try all pods until the first one that is successful, as it doesn't matter which pod
+	// carries the request to change configuration through
+	for _, pod := range pods {
+		podName := util.NameFromMeta(pod.ObjectMeta)
+		c.logger.Debugf("calling Patroni API on a pod %s to set the following patroni config: %v",
+			podName, c.Postgresql.Spec.Patroni)
+
+		if err = c.patroni.ApplyConfig(&pod, c.Postgresql.Spec.Patroni); err == nil {
+			return nil
+		}
+		c.logger.Warningf("could not patch patroni config with on pod %s: %v", podName, err)
+	}
+	return fmt.Errorf("could not reach Patroni API to patch patroni config: failed on every pod (%d total)",
 		len(pods))
 }
 
