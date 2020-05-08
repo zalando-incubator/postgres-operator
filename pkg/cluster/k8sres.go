@@ -556,6 +556,7 @@ func (c *Cluster) generatePodTemplate(
 	spiloContainer *v1.Container,
 	initContainers []v1.Container,
 	sidecarContainers []v1.Container,
+	sharePGSocketWithSidecars *bool,
 	tolerationsSpec *[]v1.Toleration,
 	spiloFSGroup *int64,
 	nodeAffinity *v1.Affinity,
@@ -603,7 +604,9 @@ func (c *Cluster) generatePodTemplate(
 		podSpec.PriorityClassName = priorityClassName
 	}
 
-	addVarRunVolume(&podSpec)
+	if sharePGSocketWithSidecars != nil && *sharePGSocketWithSidecars {
+		addVarRunVolume(&podSpec)
+	}
 
 	if additionalSecretMount != "" {
 		addSecretVolume(&podSpec, additionalSecretMount, additionalSecretMountPath)
@@ -1218,6 +1221,7 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*appsv1.Statef
 		spiloContainer,
 		initContainers,
 		sidecarContainers,
+		c.OpConfig.SharePGSocketWithSidecars,
 		&tolerationSpec,
 		effectiveFSGroup,
 		nodeAffinity(c.OpConfig.NodeReadinessLabel),
@@ -1918,6 +1922,7 @@ func (c *Cluster) generateLogicalBackupJob() (*batchv1beta1.CronJob, error) {
 		logicalBackupContainer,
 		[]v1.Container{},
 		[]v1.Container{},
+		util.False(),
 		&[]v1.Toleration{},
 		nil,
 		nodeAffinity(c.OpConfig.NodeReadinessLabel),
