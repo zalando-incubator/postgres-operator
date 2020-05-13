@@ -275,9 +275,10 @@ func (c *Controller) processEvent(event ClusterEvent) {
 		teamName := strings.ToLower(cl.Spec.TeamID)
 
 		c.curWorkerCluster.Store(event.WorkerID, cl)
-		cl.Delete()
-		// Fixme - no error handling for delete ?
-		// c.eventRecorder.Eventf(cl.GetReference, v1.EventTypeWarning, "Delete", "%v", cl.Error)
+		if err := cl.Delete(); err != nil {
+			cl.Error = fmt.Sprintf("Could not delete cluster: %v", err)
+			c.eventRecorder.Eventf(cl.GetReference(), v1.EventTypeWarning, "Delete", "%v", cl.Error)
+		}
 
 		func() {
 			defer c.clustersMu.Unlock()
@@ -306,15 +307,27 @@ func (c *Controller) processEvent(event ClusterEvent) {
 		}
 
 		c.curWorkerCluster.Store(event.WorkerID, cl)
-		if err := cl.Sync(event.NewSpec); err != nil {
-			cl.Error = fmt.Sprintf("could not sync cluster: %v", err)
-			c.eventRecorder.Eventf(cl.GetReference(), v1.EventTypeWarning, "Sync", "%v", cl.Error)
-			lg.Error(cl.Error)
-			return
+
+		// has this cluster been marked as deleted already, then we shall start cleaning up
+		if !cl.ObjectMeta.DeletionTimestamp.IsZero() {
+			lg.Infof("Cluster has a DeletionTimestamp of %s, starting deletion now.", cl.ObjectMeta.DeletionTimestamp.Format(time.RFC3339))
+			if err := cl.Delete(); err != nil {
+				cl.Error = fmt.Sprintf("Error deleting cluster and its resources: %v", err)
+				c.eventRecorder.Eventf(cl.GetReference(), v1.EventTypeWarning, "Delete", "%v", cl.Error)
+				lg.Error(cl.Error)
+				return
+			}
+			lg.Infof("cluster has been deleted")
+		} else {
+			if err := cl.Sync(event.NewSpec); err != nil {
+				cl.Error = fmt.Sprintf("could not sync cluster: %v", err)
+				c.eventRecorder.Eventf(cl.GetReference(), v1.EventTypeWarning, "Sync", "%v", cl.Error)
+				lg.Error(cl.Error)
+				return
+			}
+			lg.Infof("cluster has been synced")
 		}
 		cl.Error = ""
-
-		lg.Infof("cluster has been synced")
 	}
 }
 
@@ -484,7 +497,11 @@ func (c *Controller) postgresqlAdd(obj interface{}) {
 func (c *Controller) postgresqlUpdate(prev, cur interface{}) {
 	pgOld := c.postgresqlCheck(prev)
 	pgNew := c.postgresqlCheck(cur)
-	if pgOld != nil && pgNew != nil {
+
+	// has this cluster been marked as deleted already, then we shall start cleaning up
+	if pgNew != nil && !pgNew.ObjectMeta.DeletionTimestamp.IsZero() {
+		c.queueClusterEvent(pgNew, nil, EventDelete)
+	} else if pgOld != nil && pgNew != nil {
 		// Avoid the inifinite recursion for status updates
 		if reflect.DeepEqual(pgOld.Spec, pgNew.Spec) {
 			if reflect.DeepEqual(pgNew.Annotations, pgOld.Annotations) {
