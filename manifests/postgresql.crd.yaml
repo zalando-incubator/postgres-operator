@@ -237,12 +237,12 @@ spec:
                   type: integer
                 retry_timeout:
                   type: integer
-                maximum_lag_on_failover:
-                  type: integer
                 synchronous_mode:
                   type: boolean
                 synchronous_mode_strict:
                   type: boolean
+                maximum_lag_on_failover:
+                  type: integer
             podAnnotations:
               type: object
               additionalProperties:
@@ -474,7 +474,5 @@ spec:
                   type: string
                 subPath:
                   type: string
-        status:
-          type: object
-          additionalProperties:
-            type: string
+                deletePVC:
+                  type: string

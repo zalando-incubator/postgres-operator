@@ -111,6 +111,7 @@ type Volume struct {
 	Size         string `json:"size"`
 	StorageClass string `json:"storageClass"`
 	SubPath      string `json:"subPath,omitempty"`
+	DeletePVC    string `json:"deletePVC,omitempty"`
 }
 
 type AdditionalVolume struct {

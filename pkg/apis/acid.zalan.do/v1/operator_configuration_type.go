@@ -77,6 +77,7 @@ type KubernetesMetaConfiguration struct {
 	EnablePodAntiAffinity      bool                `json:"enable_pod_antiaffinity,omitempty"`
 	PodAntiAffinityTopologyKey string              `json:"pod_antiaffinity_topology_key,omitempty"`
 	PodManagementPolicy        string              `json:"pod_management_policy,omitempty"`
+	EnablePVCDeletion          *bool               `json:"enable_pvc_deletion,omitempty"`
 }
 
 // PostgresPodResourcesDefaults defines the spec of default resources

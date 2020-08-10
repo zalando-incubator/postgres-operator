@@ -478,3 +478,5 @@ spec:
                   type: string
                 subPath:
                   type: string
+                deletePVC:
+                  type: string

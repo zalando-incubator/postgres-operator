@@ -71,6 +71,7 @@ configuration:
     storage_resize_mode: ebs
     # toleration: {}
     # watched_namespace: ""
+    enable_pvc_deletion: true
   postgres_pod_resources:
     default_cpu_limit: "1"
     default_cpu_request: 100m

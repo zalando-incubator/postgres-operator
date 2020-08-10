@@ -486,8 +486,11 @@ func (c *Cluster) deleteStatefulSet() error {
 		return fmt.Errorf("could not delete pods: %v", err)
 	}
 
-	if err := c.deletePersistentVolumeClaims(); err != nil {
-		return fmt.Errorf("could not delete PersistentVolumeClaims: %v", err)
+	deletePVC := c.getPVCDeletion()
+	if deletePVC {
+		if err := c.deletePersistentVolumeClaims(); err != nil {
+			return fmt.Errorf("could not delete PersistentVolumeClaims: %v", err)
+		}
 	}
 
 	return nil
@@ -726,24 +729,28 @@ func (c *Cluster) deleteEndpoint(role PostgresRole) error {
 }
 
 func (c *Cluster) deleteSecrets() error {
-	c.setProcessName("deleting secrets")
-	var errors []string
-	errorCount := 0
-	for uid, secret := range c.Secrets {
-		c.logger.Debugf("deleting secret %q", util.NameFromMeta(secret.ObjectMeta))
-		err := c.KubeClient.Secrets(secret.Namespace).Delete(context.TODO(), secret.Name, c.deleteOptions)
-		if err != nil {
-			errors = append(errors, fmt.Sprintf("could not delete secret %q: %v", util.NameFromMeta(secret.ObjectMeta), err))
-			errorCount++
+	deletePVC := c.getPVCDeletion()
+	if deletePVC {
+		c.setProcessName("deleting secrets")
+		var errors []string
+		errorCount := 0
+		for uid, secret := range c.Secrets {
+			c.logger.Debugf("deleting secret %q", util.NameFromMeta(secret.ObjectMeta))
+			err := c.KubeClient.Secrets(secret.Namespace).Delete(context.TODO(), secret.Name, c.deleteOptions)
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("could not delete secret %q: %v", util.NameFromMeta(secret.ObjectMeta), err))
+				errorCount++
+			}
+			c.logger.Infof("secret %q has been deleted", util.NameFromMeta(secret.ObjectMeta))
+			c.Secrets[uid] = nil
 		}
-		c.logger.Infof("secret %q has been deleted", util.NameFromMeta(secret.ObjectMeta))
-		c.Secrets[uid] = nil
-	}
 
-	if errorCount > 0 {
-		return fmt.Errorf("could not delete all secrets: %v", errors)
+		if errorCount > 0 {
+			return fmt.Errorf("could not delete all secrets: %v", errors)
+		}
+	} else {
+		c.logger.Infoln("not deleting secrets because PVCs are kept")
 	}
-
 	return nil
 }
 
@@ -882,4 +889,18 @@ func (c *Cluster) updateConnectionPoolerAnnotations(annotations map[string]strin
 	}
 	return result, nil
 
+}
+
+func (c *Cluster) getPVCDeletion() bool {
+	deletePVC := true
+	if c.OpConfig.EnablePVCDeletion != nil && *c.OpConfig.EnablePVCDeletion == false {
+		if c.Postgresql.Spec.Volume.DeletePVC != c.Postgresql.Name {
+			// Delete PVC does not match name of cluster --> keepPVC is true
+			c.logger.Infof("not deleting PVCs because Spec.Volume.DeletePVC value \"%s\" does not match cluster name \"%s\"", c.Postgresql.Spec.Volume.DeletePVC, c.Postgresql.Name)
+			deletePVC = false
+		} else {
+			c.logger.Infof("cluster name matches Spec.Volume.DeletePVC; deleting PVCs and secrets")
+		}
+	}
+	return deletePVC
 }

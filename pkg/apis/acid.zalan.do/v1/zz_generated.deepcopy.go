@@ -219,6 +219,11 @@ func (in *KubernetesMetaConfiguration) DeepCopyInto(out *KubernetesMetaConfigura
 		}
 	}
 	out.PodEnvironmentConfigMap = in.PodEnvironmentConfigMap
+	if in.EnablePVCDeletion != nil {
+		in, out := &in.EnablePVCDeletion, &out.EnablePVCDeletion
+		*out = new(bool)
+		**out = **in
+	}
 	return
 }
 

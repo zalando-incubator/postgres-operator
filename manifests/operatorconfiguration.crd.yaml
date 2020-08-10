@@ -208,6 +208,8 @@ spec:
                     type: string
                 watched_namespace:
                   type: string
+                enable_pvc_deletion:
+                  type: boolean
             postgres_pod_resources:
               type: object
               properties:

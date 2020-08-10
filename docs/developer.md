@@ -284,7 +284,7 @@ manifest files:
 
 Postgres manifest parameters are defined in the [api package](../pkg/apis/acid.zalan.do/v1/postgresql_type.go).
 The operator behavior has to be implemented at least in [k8sres.go](../pkg/cluster/k8sres.go).
-Validation of CRD parameters is controlled in [crd.go](../pkg/apis/acid.zalan.do/v1/crds.go).
+Validation of CRD parameters is controlled in [crds.go](../pkg/apis/acid.zalan.do/v1/crds.go).
 Please, reflect your changes in tests, for example in:
 * [config_test.go](../pkg/util/config/config_test.go)
 * [k8sres_test.go](../pkg/cluster/k8sres_test.go)
