@@ -189,6 +189,8 @@ spec:
               type: boolean
             enableReplicaLoadBalancer:
               type: boolean
+            enableMasterPoolerLoadBalancer:
+              type: boolean
             enableShmVolume:
               type: boolean
             init_containers:  # deprecated

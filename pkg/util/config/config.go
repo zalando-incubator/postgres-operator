@@ -170,6 +170,7 @@ type Config struct {
 	EnableAdminRoleForUsers                bool              `name:"enable_admin_role_for_users" default:"true"`
 	EnableMasterLoadBalancer               bool              `name:"enable_master_load_balancer" default:"true"`
 	EnableReplicaLoadBalancer              bool              `name:"enable_replica_load_balancer" default:"false"`
+	EnableMasterPoolerLoadBalancer         bool              `name:"enable_master_pooler_load_balancer" default:"false"`
 	CustomServiceAnnotations               map[string]string `name:"custom_service_annotations"`
 	CustomPodAnnotations                   map[string]string `name:"custom_pod_annotations"`
 	EnablePodAntiAffinity                  bool              `name:"enable_pod_antiaffinity" default:"false"`

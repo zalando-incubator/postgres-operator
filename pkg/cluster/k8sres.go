@@ -2293,6 +2293,14 @@ func (c *Cluster) generateConnectionPoolerDeployment(spec *acidv1.PostgresSpec) 
 	return deployment, nil
 }
 
+func (c *Cluster) shouldCreateLoadBalancerForPoolerService(spec *acidv1.PostgresSpec) bool {
+	if spec.EnableMasterPoolerLoadBalancer != nil {
+		return *spec.EnableMasterPoolerLoadBalancer
+	}
+
+	return c.OpConfig.EnableMasterPoolerLoadBalancer
+}
+
 func (c *Cluster) generateConnectionPoolerService(spec *acidv1.PostgresSpec) *v1.Service {
 
 	// there are two ways to enable connection pooler, either to specify a
@@ -2313,10 +2321,15 @@ func (c *Cluster) generateConnectionPoolerService(spec *acidv1.PostgresSpec) *v1
 				TargetPort: intstr.IntOrString{StrVal: c.servicePort(Master)},
 			},
 		},
-		Type: v1.ServiceTypeClusterIP,
 		Selector: map[string]string{
 			"connection-pooler": c.connectionPoolerName(),
 		},
+	}
+
+	if c.shouldCreateLoadBalancerForPoolerService(spec) {
+		serviceSpec.Type = v1.ServiceTypeLoadBalancer
+	} else {
+		serviceSpec.Type = v1.ServiceTypeClusterIP
 	}
 
 	service := &v1.Service{

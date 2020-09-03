@@ -180,6 +180,8 @@ configLoadBalancer:
   enable_master_load_balancer: false
   # toggles service type load balancer pointing to the replica pod of the cluster
   enable_replica_load_balancer: false
+  # toggles service type load balancer pointing to the master pooler pod of the cluster
+  enable_master_pooler_load_balancer: false
   # defines the DNS name string template for the master load balancer cluster
   master_dns_name_format: "{cluster}.{team}.{hostedzone}"
   # defines the DNS name string template for the replica load balancer cluster
