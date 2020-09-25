@@ -187,6 +187,7 @@ type Config struct {
 	EnablePodDisruptionBudget *bool             `name:"enable_pod_disruption_budget" default:"true"`
 	EnableInitContainers      *bool             `name:"enable_init_containers" default:"true"`
 	EnableSidecars            *bool             `name:"enable_sidecars" default:"true"`
+	SharePGSocketWithSidecars *bool             `name:"share_pg_socket_with_sidecars" default:"false"`
 	Workers                   uint32            `name:"workers" default:"8"`
 	APIPort                   int               `name:"api_port" default:"8080"`
 	RingLogLines              int               `name:"ring_log_lines" default:"100"`

@@ -920,6 +920,9 @@ var OperatorConfigCRDResourceValidation = apiextv1beta1.CustomResourceValidation
 							"enable_sidecars": {
 								Type: "boolean",
 							},
+							"share_pg_socket_with_sidecars": {
+								Type: "boolean",
+							},
 							"infrastructure_roles_secret_name": {
 								Type: "string",
 							},

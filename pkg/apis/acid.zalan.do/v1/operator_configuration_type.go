@@ -58,6 +58,7 @@ type KubernetesMetaConfiguration struct {
 	StorageResizeMode                      string                       `json:"storage_resize_mode,omitempty"`
 	EnableInitContainers                   *bool                        `json:"enable_init_containers,omitempty"`
 	EnableSidecars                         *bool                        `json:"enable_sidecars,omitempty"`
+	SharePGSocketWithSidecars              *bool                        `json:"share_pgsocket_with_sidecars,omitempty"`
 	SecretNameTemplate                     config.StringTemplate        `json:"secret_name_template,omitempty"`
 	ClusterDomain                          string                       `json:"cluster_domain,omitempty"`
 	OAuthTokenSecretName                   spec.NamespacedName          `json:"oauth_token_secret_name,omitempty"`
