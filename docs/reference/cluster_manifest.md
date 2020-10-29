@@ -327,7 +327,11 @@ archive is supported.
 
 * **s3_wal_path**
   the url to S3 bucket containing the WAL archive of the remote primary.
-  Required when the `standby` section is present.
+  Either this or gs_wal_path is required when the `standby` section is present.
+
+* **gs_wal_path**
+  the url to GCS bucket containing the WAL archive of the remote primary.
+  Either this or s3_wal_path is required when the `standby` section is present.
 
 ## EBS volume resizing
 

@@ -157,6 +157,7 @@ type Patroni struct {
 //StandbyCluster
 type StandbyDescription struct {
 	S3WalPath string `json:"s3_wal_path,omitempty"`
+	GSWalPath string `json:"gs_wal_path,omitempty"`
 }
 
 type TLSDescription struct {
