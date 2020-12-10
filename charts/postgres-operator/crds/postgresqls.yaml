@@ -150,6 +150,8 @@ spec:
                   numberOfInstances:
                     type: integer
                     minimum: 2
+                  deploymentAnnotations:
+                    type: object
                   resources:
                     type: object
                     required:

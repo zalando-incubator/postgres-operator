@@ -434,6 +434,9 @@ for both master and replica pooler services (if `enableReplicaConnectionPooler`
 * **resources**
   Resource configuration for connection pooler deployment.
 
+* **deploymentAnnotations**
+  Custom annotations to set on the connection pooler deployment.
+
 ## Custom TLS certificates
 
 Those parameters are grouped under the `tls` top-level key.

@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/r3labs/diff"
@@ -282,6 +283,52 @@ func (c *Cluster) generateConnectionPoolerPodTemplate(role PostgresRole) (
 		},
 	}
 
+	// If the cluster has custom TLS certificates configured, we do the following:
+	//  1. Add environment variables to tell pgBouncer where to find the TLS certificates
+	//  2. Reference the secret in a volume
+	//  3. Mount the volume to the container at /tls
+	poolerVolumes := []v1.Volume{}
+	if spec.TLS != nil && spec.TLS.SecretName != "" {
+		// Env vars
+		crtFile := spec.TLS.CertificateFile
+		keyFile := spec.TLS.PrivateKeyFile
+		if crtFile == "" {
+			crtFile = "tls.crt"
+		}
+		if keyFile == "" {
+			crtFile = "tls.key"
+		}
+
+		envVars = append(
+			envVars,
+			v1.EnvVar{
+				Name: "CONNECTION_POOLER_CLIENT_TLS_CRT", Value: filepath.Join("/tls", crtFile),
+			},
+			v1.EnvVar{
+				Name: "CONNECTION_POOLER_CLIENT_TLS_KEY", Value: filepath.Join("/tls", keyFile),
+			},
+		)
+
+		// Volume
+		mode := int32(0640)
+		volume := v1.Volume{
+			Name: "tls",
+			VolumeSource: v1.VolumeSource{
+				Secret: &v1.SecretVolumeSource{
+					SecretName:  spec.TLS.SecretName,
+					DefaultMode: &mode,
+				},
+			},
+		}
+		poolerVolumes = append(poolerVolumes, volume)
+
+		// Mount
+		poolerContainer.VolumeMounts = []v1.VolumeMount{{
+			Name:      "tls",
+			MountPath: "/tls",
+		}}
+	}
+
 	podTemplate := &v1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      c.connectionPoolerLabels(role, true).MatchLabels,
@@ -292,6 +339,7 @@ func (c *Cluster) generateConnectionPoolerPodTemplate(role PostgresRole) (
 			ServiceAccountName:            c.OpConfig.PodServiceAccountName,
 			TerminationGracePeriodSeconds: &gracePeriod,
 			Containers:                    []v1.Container{poolerContainer},
+			Volumes:                       poolerVolumes,
 			// TODO: add tolerations to scheduler pooler on the same node
 			// as database
 			//Tolerations:                   *tolerationsSpec,
@@ -315,6 +363,9 @@ func (c *Cluster) generateConnectionPoolerDeployment(connectionPooler *Connectio
 		spec.ConnectionPooler = &acidv1.ConnectionPooler{}
 	}
 	podTemplate, err := c.generateConnectionPoolerPodTemplate(connectionPooler.Role)
+	if err != nil {
+		return nil, err
+	}
 
 	numberOfInstances := spec.ConnectionPooler.NumberOfInstances
 	if numberOfInstances == nil {
@@ -330,8 +381,11 @@ func (c *Cluster) generateConnectionPoolerDeployment(connectionPooler *Connectio
 		*numberOfInstances = constants.ConnectionPoolerMinInstances
 	}
 
-	if err != nil {
-		return nil, err
+	annotations := map[string]string{}
+	if spec.ConnectionPooler.DeploymentAnnotations != nil {
+		for k, v := range spec.ConnectionPooler.DeploymentAnnotations {
+			annotations[k] = v
+		}
 	}
 
 	deployment := &appsv1.Deployment{
@@ -339,7 +393,7 @@ func (c *Cluster) generateConnectionPoolerDeployment(connectionPooler *Connectio
 			Name:        connectionPooler.Name,
 			Namespace:   connectionPooler.Namespace,
 			Labels:      c.connectionPoolerLabels(connectionPooler.Role, true).MatchLabels,
-			Annotations: map[string]string{},
+			Annotations: annotations,
 			// make StatefulSet object its owner to represent the dependency.
 			// By itself StatefulSet is being deleted with "Orphaned"
 			// propagation policy, which means that it's deletion will not

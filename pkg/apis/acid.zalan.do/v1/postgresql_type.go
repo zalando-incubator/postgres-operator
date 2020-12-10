@@ -216,5 +216,6 @@ type ConnectionPooler struct {
 	DockerImage       string `json:"dockerImage,omitempty"`
 	MaxDBConnections  *int32 `json:"maxDBConnections,omitempty"`
 
-	Resources `json:"resources,omitempty"`
+	DeploymentAnnotations map[string]string `json:"deploymentAnnotations,omitempty"`
+	Resources             `json:"resources,omitempty"`
 }

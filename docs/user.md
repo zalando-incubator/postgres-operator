@@ -933,3 +933,29 @@ Alternatively, it is also possible to use
 
 Certificate rotation is handled in the Spilo image which checks every 5
 minutes if the certificates have changed and reloads postgres accordingly.
+
+### Custom TLS Certificates with Connection Pooler
+
+If the postgres resource is configured with a custom TLS secret, the connection
+pooler uses that secret as well. Note that neither pgBouncer nor the operator
+handle the reload of TLS certificates as they are changed.
+
+As an alternative, the postgres resource allows setting custom annotations on
+the pooler deployment. This way, external solutions such as [stakater/Reloader](https://github.com/stakater/Reloader)
+can be used to redeploy all connection pooler pods as TLS certificates are
+changed.
+
+When you are using stakater/Reloader, you can add the following to your
+postgres resource:
+
+```yaml
+apiVersion: "acid.zalan.do/v1"
+kind: postgresql
+
+metadata:
+  name: acid-test-cluster
+spec:
+  connectionPooler:
+    deploymentAnnotations:
+      reloader.stakater.com/auto: "true"
+```
