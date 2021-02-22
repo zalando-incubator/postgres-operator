@@ -26,6 +26,7 @@ const (
 type Interface interface {
 	Switchover(master *v1.Pod, candidate string) error
 	SetPostgresParameters(server *v1.Pod, options map[string]string) error
+	SetStandbyClusterParameters(server *v1.Pod, options map[string]string) error
 	GetPatroniMemberState(pod *v1.Pod) (string, error)
 }
 
@@ -116,6 +117,20 @@ func (p *Patroni) Switchover(master *v1.Pod, candidate string) error {
 func (p *Patroni) SetPostgresParameters(server *v1.Pod, parameters map[string]string) error {
 	buf := &bytes.Buffer{}
 	err := json.NewEncoder(buf).Encode(map[string]map[string]interface{}{"postgresql": {"parameters": parameters}})
+	if err != nil {
+		return fmt.Errorf("could not encode json: %v", err)
+	}
+	apiURLString, err := apiURL(server)
+	if err != nil {
+		return err
+	}
+	return p.httpPostOrPatch(http.MethodPatch, apiURLString+configPath, buf)
+}
+
+//SetStandbyClusterParameters sets StandbyCluster options via Patroni patch API call.
+func (p *Patroni) SetStandbyClusterParameters(server *v1.Pod, parameters map[string]string) error {
+	buf := &bytes.Buffer{}
+	err := json.NewEncoder(buf).Encode(map[string]interface{}{"standby_cluster": parameters})
 	if err != nil {
 		return fmt.Errorf("could not encode json: %v", err)
 	}

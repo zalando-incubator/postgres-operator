@@ -773,23 +773,11 @@ kubectl get secrets --all-namespaces | grep <standby-cluster-name>
 One big advantage of standby clusters is that they can be promoted to a proper
 database cluster. This means it will stop replicating changes from the source,
 and start accept writes itself. This mechanism makes it possible to move
-databases from one place to another with minimal downtime. Currently, the
-operator does not support promoting a standby cluster. It has to be done
-manually using `patronictl edit-config` inside the postgres container of the
-standby leader pod. Remove the following lines from the YAML structure and the
-leader promotion happens immediately. Before doing so, make sure that the
-standby is not behind the source database.
+databases from one place to another with minimal downtime.
 
-```yaml
-standby_cluster:
-  create_replica_methods:
-    - bootstrap_standby_with_wale
-    - basebackup_fast_xlog
-  restore_command: envdir "/home/postgres/etc/wal-e.d/env-standby" /scripts/restore_command.sh
-     "%f" "%p"
-```
-
-Finally, remove the `standby` section from the postgres cluster manifest.
+Before promoting a standby cluster, make sure that the standby is not behind
+the source database. To promote, remove the `standby` section from the postgres
+cluster manifest and apply the change.
 
 ### Turn a normal cluster into a standby
 

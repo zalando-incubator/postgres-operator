@@ -367,6 +367,11 @@ func (c *Cluster) syncStatefulSet() error {
 		return fmt.Errorf("could not set cluster-wide PostgreSQL configuration options: %v", err)
 	}
 
+	// Apply Standby Cluster parameters
+	if err := c.checkAndSetStandbyClusterConfiguration(); err != nil {
+		return fmt.Errorf("could not set StandbyCluster configuration options: %v", err)
+	}
+
 	// if we get here we also need to re-create the pods (either leftovers from the old
 	// statefulset or those that got their configuration from the outdated statefulset)
 	if podsRollingUpdateRequired {
@@ -454,6 +459,44 @@ func (c *Cluster) checkAndSetGlobalPostgreSQLConfiguration() error {
 			return nil
 		}
 		c.logger.Warningf("could not patch postgres parameters with a pod %s: %v", podName, err)
+	}
+	return fmt.Errorf("could not reach Patroni API to set Postgres options: failed on every pod (%d total)",
+		len(pods))
+}
+
+// checkAndSetStandbyClusterConfiguration checks whether standby cluster
+// parameters have changed and if necessary sets it via the Patroni API
+func (c *Cluster) checkAndSetStandbyClusterConfiguration() error {
+	var (
+		err  error
+		pods []v1.Pod
+	)
+
+	optionsToSet := make(map[string]string)
+	if c.Spec.StandbyCluster != nil {
+		standbyClusterOptions := c.Spec.StandbyCluster
+		optionsToSet["s3_wal_path"] = standbyClusterOptions.S3WalPath
+	} else {
+		optionsToSet = nil
+	}
+
+
+	if pods, err = c.listPods(); err != nil {
+		return err
+	}
+	if len(pods) == 0 {
+		return fmt.Errorf("could not call Patroni API: cluster has no pods")
+	}
+	// try all pods until the first one that is successful, as it doesn't matter which pod
+	// carries the request to change configuration through
+	for _, pod := range pods {
+		podName := util.NameFromMeta(pod.ObjectMeta)
+		c.logger.Debugf("calling Patroni API on a pod %s to set the following Standby Cluster options: %v",
+			podName, optionsToSet)
+		if err = c.patroni.SetStandbyClusterParameters(&pod, optionsToSet); err == nil {
+			return nil
+		}
+		c.logger.Warningf("could not patch standby cluster parameters with a pod %s: %v", podName, err)
 	}
 	return fmt.Errorf("could not reach Patroni API to set Postgres options: failed on every pod (%d total)",
 		len(pods))
