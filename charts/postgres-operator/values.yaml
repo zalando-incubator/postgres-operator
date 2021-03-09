@@ -18,40 +18,41 @@ configTarget: "ConfigMap"
 # JSON logging format
 enableJsonLogging: false
 
-# general configuration parameters
+# general top-level configuration parameters
 configGeneral:
   # choose if deployment creates/updates CRDs with OpenAPIV3Validation
-  enable_crd_validation: "true"
+  enable_crd_validation: true
   # update only the statefulsets without immediately doing the rolling update
-  enable_lazy_spilo_upgrade: "false"
+  enable_lazy_spilo_upgrade: false
   # set the PGVERSION env var instead of providing the version via postgresql.bin_dir in SPILO_CONFIGURATION
-  enable_pgversion_env_var: "true"
+  enable_pgversion_env_var: true
   # start any new database pod without limitations on shm memory
-  enable_shm_volume: "true"
+  enable_shm_volume: true
   # enables backwards compatible path between Spilo 12 and Spilo 13 images
-  enable_spilo_wal_path_compat: "false"
+  enable_spilo_wal_path_compat: false
   # etcd connection string for Patroni. Empty uses K8s-native DCS.
   etcd_host: ""
   # Select if setup uses endpoints (default), or configmaps to manage leader (DCS=k8s)
-  # kubernetes_use_configmaps: "false"
+  # kubernetes_use_configmaps: false
   # Spilo docker image
   docker_image: registry.opensource.zalan.do/acid/spilo-13:2.0-p4
   # max number of instances in Postgres cluster. -1 = no limit
-  min_instances: "-1"
+  min_instances: -1
   # min number of instances in Postgres cluster. -1 = no limit
-  max_instances: "-1"
+  max_instances: -1
   # period between consecutive repair requests
   repair_period: 5m
   # period between consecutive sync requests
   resync_period: 30m
   # can prevent certain cases of memory overcommitment
-  # set_memory_request_to_limit: "false"
+  # set_memory_request_to_limit: false
 
   # map of sidecar names to docker images
-  # sidecar_docker_images: ""
+  # sidecar_docker_images
+  #  example: "exampleimage:exampletag"
 
   # number of routines the operator spawns to process requests concurrently
-  workers: "8"
+  workers: 8
 
 # parameters describing Postgres users
 configUsers:
@@ -70,16 +71,20 @@ configMajorVersionUpgrade:
 
 configKubernetes:
   # list of additional capabilities for postgres container
-  # additional_pod_capabilities: "SYS_NICE"
+  # additional_pod_capabilities:
+  # - "SYS_NICE"
 
   # default DNS domain of K8s cluster where operator is running
   cluster_domain: cluster.local
   # additional labels assigned to the cluster objects
-  cluster_labels: application:spilo
+  cluster_labels:
+    application: spilo
   # label assigned to Kubernetes objects created by the operator
   cluster_name_label: cluster-name
-  # annotations attached to each database pod
-  # custom_pod_annotations: "keya:valuea,keyb:valueb"
+  # additional annotations to add to every database pod
+  # custom_pod_annotations:
+  #   keya: valuea
+  #   keyb: valueb
 
   # key name for annotation that compares manifest value with current date
   # delete_annotation_date_key: "delete-date"
@@ -88,30 +93,36 @@ configKubernetes:
   # delete_annotation_name_key: "delete-clustername"
 
   # list of annotations propagated from cluster manifest to statefulset and deployment
-  # downscaler_annotations: "deployment-time,downscaler/*"
+  # downscaler_annotations:
+  #   - deployment-time
+  #   - downscaler/*
 
   # enables initContainers to run actions before Spilo is started
-  enable_init_containers: "true"
+  enable_init_containers: true
   # toggles pod anti affinity on the Postgres pods
-  enable_pod_antiaffinity: "false"
+  enable_pod_antiaffinity: false
   # toggles PDB to set to MinAvailabe 0 or 1
-  enable_pod_disruption_budget: "true"
+  enable_pod_disruption_budget: true
   # enables sidecar containers to run alongside Spilo in the same pod
-  enable_sidecars: "true"
+  enable_sidecars: true
   # namespaced name of the secret containing infrastructure roles names and passwords
   # infrastructure_roles_secret_name: postgresql-infrastructure-roles
 
   # list of annotation keys that can be inherited from the cluster manifest
-  # inherited_annotations: owned-by
+  # inherited_annotations:
+  # - owned-by
 
   # list of label keys that can be inherited from the cluster manifest
-  # inherited_labels: application,environment
+  # inherited_labels:
+  # - application
+  # - environment
 
   # timeout for successful migration of master pods from unschedulable node
   # master_pod_move_timeout: 20m
 
   # set of labels that a running and active node should possess to be considered ready
-  # node_readiness_label: ""
+  # node_readiness_label:
+  #   status: ready
 
   # namespaced name of the secret containing the OAuth2 token to pass to the teams API
   # oauth_token_secret_name: postgresql-operator
@@ -143,10 +154,10 @@ configKubernetes:
   # spilo_runasuser: "101"
   # spilo_runasgroup: "103"
   # group ID with write-access to volumes (required to run Spilo as non-root process)
-  # spilo_fsgroup: "103"
+  # spilo_fsgroup: 103
 
   # whether the Spilo container should run in privileged mode
-  spilo_privileged: "false"
+  spilo_privileged: false
   # storage resize strategy, available options are: ebs, pvc, off
   storage_resize_mode: pvc
   # operator watches for postgres objects in the given namespace
@@ -187,34 +198,36 @@ configLoadBalancer:
   # DNS zone for cluster DNS name when load balancer is configured for cluster
   db_hosted_zone: db.example.com
   # annotations to apply to service when load balancing is enabled
-  # custom_service_annotations: "keyx:valuez,keya:valuea"
+  # custom_service_annotations:
+  #   keyx: valuez
+  #   keya: valuea
 
   # toggles service type load balancer pointing to the master pod of the cluster
-  enable_master_load_balancer: "false"
+  enable_master_load_balancer: false
   # toggles service type load balancer pointing to the replica pod of the cluster
-  enable_replica_load_balancer: "false"
+  enable_replica_load_balancer: false
   # define external traffic policy for the load balancer
   external_traffic_policy: "Cluster"
   # defines the DNS name string template for the master load balancer cluster
-  master_dns_name_format: '{cluster}.{team}.{hostedzone}'
+  master_dns_name_format: "{cluster}.{team}.{hostedzone}"
   # defines the DNS name string template for the replica load balancer cluster
-  replica_dns_name_format: '{cluster}-repl.{team}.{hostedzone}'
+  replica_dns_name_format: "{cluster}-repl.{team}.{hostedzone}"
 
 # options to aid debugging of the operator itself
 configDebug:
   # toggles verbose debug logs from the operator
-  debug_logging: "true"
+  debug_logging: true
   # toggles operator functionality that require access to the postgres database
-  enable_database_access: "true"
+  enable_database_access: true
 
 # parameters affecting logging and REST API listener
 configLoggingRestApi:
   # REST API listener listens to this port
-  api_port: "8080"
+  api_port: 8080
   # number of entries in the cluster history ring buffer
-  cluster_history_entries: "1000"
+  cluster_history_entries: 1000
   # number of lines in the ring buffer used to store cluster logs
-  ring_log_lines: "100"
+  ring_log_lines: 100
 
 # configure interaction with non-Kubernetes objects from AWS or GCP
 configAwsOrGcp:
@@ -228,11 +241,11 @@ configAwsOrGcp:
   aws_region: eu-central-1
 
   # enable automatic migration on AWS from gp2 to gp3 volumes
-  enable_ebs_gp3_migration: "false"
+  enable_ebs_gp3_migration: false
   # defines maximum volume size in GB until which auto migration happens
-  # enable_ebs_gp3_migration_max_size: "1000"
+  # enable_ebs_gp3_migration_max_size: 1000
 
-  # GCP credentials for setting the GOOGLE_APPLICATION_CREDNETIALS environment variable
+  # GCP credentials that will be used by the operator / pods
   # gcp_credentials: ""
 
   # AWS IAM role to supply in the iam.amazonaws.com/role annotation of Postgres pods
@@ -241,11 +254,11 @@ configAwsOrGcp:
   # S3 bucket to use for shipping postgres daily logs
   # log_s3_bucket: ""
 
-  # S3 bucket to use for shipping WAL segments with WAL-E
-  # wal_s3_bucket: ""
-
   # GCS bucket to use for shipping WAL segments with WAL-E
   # wal_gs_bucket: ""
+
+  # S3 bucket to use for shipping WAL segments with WAL-E
+  # wal_s3_bucket: ""
 
 # configure K8s cron job managed by the operator
 configLogicalBackup:
@@ -262,10 +275,10 @@ configLogicalBackup:
   logical_backup_s3_access_key_id: ""
   # S3 bucket to store backup results
   logical_backup_s3_bucket: "my-bucket-url"
-  # S3 endpoint url when not using AWS
-  logical_backup_s3_endpoint: ""
   # S3 region of bucket
   logical_backup_s3_region: ""
+  # S3 endpoint url when not using AWS
+  logical_backup_s3_endpoint: ""
   # S3 Secret Access Key
   logical_backup_s3_secret_access_key: ""
   # S3 server side encryption
@@ -273,40 +286,37 @@ configLogicalBackup:
   # backup schedule in the cron format
   logical_backup_schedule: "30 00 * * *"
 
-
 # automate creation of human users with teams API service
 configTeamsApi:
   # team_admin_role will have the rights to grant roles coming from PG manifests
-  # enable_admin_role_for_users: "true"
+  # enable_admin_role_for_users: true
 
   # operator watches for PostgresTeam CRs to assign additional teams and members to clusters
-  enable_postgres_team_crd: "false"
+  enable_postgres_team_crd: false
   # toogle to create additional superuser teams from PostgresTeam CRs
-  # enable_postgres_team_crd_superusers: "false"
+  # enable_postgres_team_crd_superusers: false
 
   # toggle to grant superuser to team members created from the Teams API
-  # enable_team_superuser: "false"
-
+  enable_team_superuser: false
   # toggles usage of the Teams API by the operator
-  enable_teams_api: "false"
+  enable_teams_api: false
   # should contain a URL to use for authentication (username and token)
   # pam_configuration: https://info.example.com/oauth2/tokeninfo?access_token= uid realm=/employees
 
   # operator will add all team member roles to this group and add a pg_hba line
   # pam_role_name: zalandos
-
   # List of teams which members need the superuser role in each Postgres cluster
-  # postgres_superuser_teams: "postgres_superusers"
+  # postgres_superuser_teams:
+  # - postgres_superusers
 
   # List of roles that cannot be overwritten by an application, team or infrastructure role
-  # protected_role_names: "admin"
-
+  # protected_role_names:
+  # - admin
   # role name to grant to team members created from the Teams API
   # team_admin_role: "admin"
-
   # postgres config parameters to apply to each team member role
-  # team_api_role_configuration: "log_statement:all"
-
+  # team_api_role_configuration:
+  #  log_statement: all
   # URL of the Teams API service
   # teams_api_url: http://fake-teams-api.default.svc.cluster.local
 
@@ -319,11 +329,11 @@ configConnectionPooler:
   # docker image
   connection_pooler_image: "registry.opensource.zalan.do/acid/pgbouncer:master-14"
   # max db connections the pooler should hold
-  connection_pooler_max_db_connections: "60"
+  connection_pooler_max_db_connections: 60
   # default pooling mode
   connection_pooler_mode: "transaction"
   # number of pooler instances
-  connection_pooler_number_of_instances: "2"
+  connection_pooler_number_of_instances: 2
   # default resources
   connection_pooler_default_cpu_request: 500m
   connection_pooler_default_memory_request: 100Mi

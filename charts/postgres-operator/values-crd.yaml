@@ -15,6 +15,9 @@ podLabels: {}
 
 configTarget: "OperatorConfigurationCRD"
 
+# JSON logging format
+enableJsonLogging: false
+
 # general top-level configuration parameters
 configGeneral:
   # choose if deployment creates/updates CRDs with OpenAPIV3Validation
@@ -298,7 +301,7 @@ configTeamsApi:
   # toggles usage of the Teams API by the operator
   enable_teams_api: false
   # should contain a URL to use for authentication (username and token)
-  # pam_configuration: ""
+  # pam_configuration: https://info.example.com/oauth2/tokeninfo?access_token= uid realm=/employees
 
   # operator will add all team member roles to this group and add a pg_hba line
   pam_role_name: zalandos
@@ -317,6 +320,7 @@ configTeamsApi:
   # URL of the Teams API service
   # teams_api_url: http://fake-teams-api.default.svc.cluster.local
 
+# configure connection pooler deployment created by the operator
 configConnectionPooler:
   # db schema to install lookup function into
   connection_pooler_schema: "pooler"
