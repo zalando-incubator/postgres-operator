@@ -774,13 +774,23 @@ different location than its source database. Unlike cloning, the PostgreSQL
 version between source and target cluster has to be the same.
 
 To start a cluster as standby, add the following `standby` section in the YAML
-file and specify the S3 bucket path. An empty path will result in an error and
-no statefulset will be created.
+file. Specify either the S3 bucket path or a cluster name to use the default layout.
+Omitting both settings will result in an error and no statefulset will be created.
+Note that when specifying cluster name you may also optionally provide a UID and
+Postgres major version if those are used in your bucket.
 
 ```yaml
 spec:
   standby:
     s3_wal_path: "s3 bucket path to the master"
+```
+
+```yaml
+spec:
+  standby:
+    cluster: "acid-batman"
+    uid: "efd12e58-5786-11e8-b5a7-06148230260c"
+    version: "12"
 ```
 
 At the moment, the operator only allows to stream from the WAL archive of the

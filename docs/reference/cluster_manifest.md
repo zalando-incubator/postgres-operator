@@ -331,12 +331,28 @@ under the `clone` top-level key and do not affect the already running cluster.
 ## Standby cluster
 
 On startup, an existing `standby` top-level key creates a standby Postgres
-cluster streaming from a remote location. So far only streaming from a S3 WAL
-archive is supported.
+cluster streaming from a remote location. So far streaming from S3 and GCS WAL
+archives is supported.
+
+* **cluster**
+  name of the cluster to clone from. Used to identify the S3 or GS bucket to replicate
+  from. Optional, but `cluster` or `s3_wal_path` is required.
+
+* **uid**
+  Kubernetes UID of the cluster to replicate from. Since cluster name is not a
+  unique identifier of the cluster (as identically named clusters may exist in
+  different namespaces) , the operator uses UID in the bucket name in order
+  to guarantee uniqueness. Can be omitted for buckets which do not include the
+  UID in their path. Optional.
+
+* **version**
+  The Postgres major version of the cluster to replicate. This is needed with
+  wal-e/wal-g backups created by Spilo 13 as they append the Postgres version to
+  the bucket path. Optional.
 
 * **s3_wal_path**
   the url to S3 bucket containing the WAL archive of the remote primary.
-  Required when the `standby` section is present.
+  Optional, but `cluster` or `s3_wal_path` is required. 
 
 ## Volume properties
 
