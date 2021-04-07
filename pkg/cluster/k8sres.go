@@ -1053,8 +1053,8 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*appsv1.Statef
 	sort.Slice(customPodEnvVarsList,
 		func(i, j int) bool { return customPodEnvVarsList[i].Name < customPodEnvVarsList[j].Name })
 
-	if spec.StandbyCluster != nil && spec.StandbyCluster.S3WalPath == "" {
-		return nil, fmt.Errorf("s3_wal_path is empty for standby cluster")
+	if spec.StandbyCluster != nil && spec.StandbyCluster.S3WalPath == "" && spec.StandbyCluster.ClusterName == "" {
+		return nil, fmt.Errorf("s3_wal_path and cluster are both empty for standby cluster")
 	}
 
 	// backward compatible check for InitContainers
@@ -1863,16 +1863,55 @@ func (c *Cluster) generateStandbyEnvironment(description *acidv1.StandbyDescript
 	result := make([]v1.EnvVar, 0)
 
 	if description.S3WalPath == "" {
-		return nil
-	}
-	// standby with S3, find out the bucket to setup standby
-	msg := "Standby from S3 bucket using custom parsed S3WalPath from the manifest %s "
-	c.logger.Infof(msg, description.S3WalPath)
+		msg := "Figure out which S3 bucket to use from env"
+		c.logger.Info(msg, description.S3WalPath)
 
-	result = append(result, v1.EnvVar{
-		Name:  "STANDBY_WALE_S3_PREFIX",
-		Value: description.S3WalPath,
-	})
+		if c.OpConfig.WALES3Bucket != "" {
+			envs := []v1.EnvVar{
+				{
+					Name:  "STANDBY_WAL_S3_BUCKET",
+					Value: c.OpConfig.WALES3Bucket,
+				},
+			}
+			result = append(result, envs...)
+		} else if c.OpConfig.WALGSBucket != "" {
+			envs := []v1.EnvVar{
+				{
+					Name:  "STANDBY_WAL_GS_BUCKET",
+					Value: c.OpConfig.WALGSBucket,
+				},
+				{
+					Name:  "STANDBY_GOOGLE_APPLICATION_CREDENTIALS",
+					Value: c.OpConfig.GCPCredentials,
+				},
+			}
+			result = append(result, envs...)
+		} else {
+			c.logger.Error("Cannot figure out S3 or GS bucket. Both are empty.")
+		}
+
+		// TODO add UID support for standby
+		/*
+			envs := []v1.EnvVar{
+				{
+					Name:  "CLONE_WAL_BUCKET_SCOPE_SUFFIX",
+					Value: getBucketScopeSuffix(description.UID),
+				},
+			}
+
+			result = append(result, envs...)
+		*/
+
+	} else {
+		// standby with S3, find out the bucket to setup standby
+		msg := "Standby from S3 bucket using custom parsed S3WalPath from the manifest %s "
+		c.logger.Infof(msg, description.S3WalPath)
+
+		result = append(result, v1.EnvVar{
+			Name:  "STANDBY_WALE_S3_PREFIX",
+			Value: description.S3WalPath,
+		})
+	}
 
 	result = append(result, v1.EnvVar{Name: "STANDBY_METHOD", Value: "STANDBY_WITH_WALE"})
 	result = append(result, v1.EnvVar{Name: "STANDBY_WAL_BUCKET_SCOPE_PREFIX", Value: ""})

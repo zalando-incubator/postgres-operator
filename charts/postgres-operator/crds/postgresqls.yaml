@@ -374,9 +374,9 @@ spec:
                 type: integer
               standby:
                 type: object
-                required:
-                  - s3_wal_path
                 properties:
+                  cluster:
+                    type: string
                   s3_wal_path:
                     type: string
               teamId:
