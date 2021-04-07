@@ -1892,17 +1892,14 @@ func (c *Cluster) generateStandbyEnvironment(description *acidv1.StandbyDescript
 			c.logger.Error("Cannot figure out S3 or GS bucket. Both are empty.")
 		}
 
-		// TODO add UID support for standby
-		/*
-			envs := []v1.EnvVar{
-				{
-					Name:  "CLONE_WAL_BUCKET_SCOPE_SUFFIX",
-					Value: getBucketScopeSuffix(description.UID),
-				},
-			}
+		envs := []v1.EnvVar{
+			{
+				Name:  "STANDBY_WAL_BUCKET_SCOPE_SUFFIX",
+				Value: getBucketScopeSuffix(description.UID),
+			},
+		}
 
-			result = append(result, envs...)
-		*/
+		result = append(result, envs...)
 
 	} else {
 		// standby with S3, find out the bucket to setup standby

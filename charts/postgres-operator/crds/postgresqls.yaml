@@ -379,6 +379,9 @@ spec:
                     type: string
                   s3_wal_path:
                     type: string
+                  uid:
+                    format: uuid
+                    type: string
               teamId:
                 type: string
               tls:

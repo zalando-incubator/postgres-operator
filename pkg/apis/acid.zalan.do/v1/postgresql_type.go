@@ -165,6 +165,7 @@ type Patroni struct {
 // StandbyDescription contains s3 wal path
 type StandbyDescription struct {
 	ClusterName string `json:"cluster,omitempty"`
+	UID         string `json:"uid,omitempty"`
 	S3WalPath   string `json:"s3_wal_path,omitempty"`
 }
 
