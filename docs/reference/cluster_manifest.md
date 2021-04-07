@@ -336,7 +336,7 @@ archives is supported.
 
 * **cluster**
   name of the cluster to clone from. Used to identify the S3 or GS bucket to replicate
-  from. Optional, but `cluster` or `s3_wal_path` is required.
+  from. Optional, but `cluster`, `s3_wal_path`  or `gs_wal_path` is required.
 
 * **uid**
   Kubernetes UID of the cluster to replicate from. Since cluster name is not a
@@ -352,7 +352,11 @@ archives is supported.
 
 * **s3_wal_path**
   the url to S3 bucket containing the WAL archive of the remote primary.
-  Optional, but `cluster` or `s3_wal_path` is required. 
+  Optional, but `cluster`, `s3_wal_path`  or `gs_wal_path` is required. 
+
+* **gs_wal_path**
+  the url to GS bucket containing the WAL archive of the remote primary.
+  Optional, but `cluster`, `s3_wal_path`  or `gs_wal_path` is required. 
 
 ## Volume properties
 

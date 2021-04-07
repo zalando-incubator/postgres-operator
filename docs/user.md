@@ -774,7 +774,7 @@ different location than its source database. Unlike cloning, the PostgreSQL
 version between source and target cluster has to be the same.
 
 To start a cluster as standby, add the following `standby` section in the YAML
-file. Specify either the S3 bucket path or a cluster name to use the default layout.
+file. Specify either the S3/GS bucket path or a cluster name to use the default layout.
 Omitting both settings will result in an error and no statefulset will be created.
 Note that when specifying cluster name you may also optionally provide a UID and
 Postgres major version if those are used in your bucket.
