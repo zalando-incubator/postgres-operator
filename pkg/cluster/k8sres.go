@@ -1866,6 +1866,8 @@ func (c *Cluster) generateStandbyEnvironment(description *acidv1.StandbyDescript
 		msg := "Figure out which S3 bucket to use from env"
 		c.logger.Info(msg, description.S3WalPath)
 
+		cluster := description.ClusterName
+		result = append(result, v1.EnvVar{Name: "STANDBY_SCOPE", Value: cluster})
 		if c.OpConfig.WALES3Bucket != "" {
 			envs := []v1.EnvVar{
 				{
