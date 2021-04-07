@@ -382,6 +382,17 @@ spec:
                   uid:
                     format: uuid
                     type: string
+                  version:
+                    type: string
+                    enum:
+                      - "9.3"
+                      - "9.4"
+                      - "9.5"
+                      - "9.6"
+                      - "10"
+                      - "11"
+                      - "12"
+                      - "13"
               teamId:
                 type: string
               tls:
