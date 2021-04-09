@@ -3,6 +3,7 @@ package k8sutil
 import (
 	"context"
 	"fmt"
+	batchv1 "k8s.io/api/batch/v1"
 	"reflect"
 
 	b64 "encoding/base64"
@@ -103,6 +104,20 @@ type mockConfigMap struct {
 }
 
 type MockConfigMapsGetter struct {
+}
+
+type mockCronJob struct {
+	clientbatchv1beta1.CronJobInterface
+}
+
+type MockCronJobsGetter struct {
+}
+
+type mockEndpoint struct {
+	corev1.EndpointsInterface
+}
+
+type MockEndpointsGetter struct {
 }
 
 // RestConfig creates REST config
@@ -449,6 +464,14 @@ func (mock *mockService) Create(context.Context, *v1.Service, metav1.CreateOptio
 		},
 	}, nil
 }
+func (mock *mockService) Update(ctx context.Context, service *v1.Service, opts metav1.UpdateOptions) (*v1.Service, error) {
+	return &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-service-updated",
+		},
+	}, nil
+}
+
 
 func (mock *mockService) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	return nil
@@ -478,6 +501,83 @@ func (mock *mockServiceNotExist) Get(ctx context.Context, name string, opts meta
 	}
 }
 
+
+func (mock *MockCronJobsGetter) CronJobs(namespace string) clientbatchv1beta1.CronJobInterface {
+	return &mockCronJob{}
+}
+
+func (mock *mockCronJob) Create(ctx context.Context, cronJob *batchv1beta1.CronJob, opts metav1.CreateOptions) (*batchv1beta1.CronJob, error){
+return &batchv1beta1.CronJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-cronjob",
+		},
+	}, nil
+}
+
+func (mock *mockCronJob) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
+	return nil
+}
+
+func (mock *mockCronJob) Get(ctx context.Context, name string, opts metav1.GetOptions) (*batchv1beta1.CronJob, error) {
+	return &batchv1beta1.CronJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-cronjob",
+		}, Spec: batchv1beta1.CronJobSpec{
+			JobTemplate: batchv1beta1.JobTemplateSpec{
+				Spec: batchv1.JobSpec{
+					Template: v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{},
+						Spec: v1.PodSpec{
+							Volumes:        nil,
+							InitContainers: nil,
+							Containers: []v1.Container{
+								v1.Container{
+									Name: "global-sidecar",
+								},
+								// will be replaced by a cluster specific sidecar with the same name
+								v1.Container{
+									Name:  "replace-sidecar",
+									Image: "replaced-image",
+								},
+							},
+						},
+					},
+					TTLSecondsAfterFinished: nil,
+				},
+			},
+			SuccessfulJobsHistoryLimit: nil,
+			FailedJobsHistoryLimit:     nil,
+		},
+	}, nil
+}
+
+func (mock *MockEndpointsGetter) Endpoints(namespace string) corev1.EndpointsInterface {
+	return &mockEndpoint{}
+}
+
+
+func (mock *mockEndpoint) Create(ctx context.Context, cronJob *v1.Endpoints, opts metav1.CreateOptions) (*v1.Endpoints, error){
+	return &v1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-cronjob",
+		},
+	}, nil
+}
+
+func (mock *mockEndpoint) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
+	return nil
+}
+
+func (mock *mockEndpoint) Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.Endpoints, error) {
+	return &v1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-cronjob",
+		},
+	}, nil
+}
+
+
+
 // NewMockKubernetesClient for other tests
 func NewMockKubernetesClient() KubernetesClient {
 	return KubernetesClient{
@@ -485,6 +585,9 @@ func NewMockKubernetesClient() KubernetesClient {
 		ConfigMapsGetter:  &MockConfigMapsGetter{},
 		DeploymentsGetter: &MockDeploymentGetter{},
 		ServicesGetter:    &MockServiceGetter{},
+		CronJobsGetter:    &MockCronJobsGetter{},
+		EndpointsGetter:   &MockEndpointsGetter{},
+
 	}
 }
 
