@@ -114,6 +114,7 @@ type ControllerConfig struct {
 	CRDReadyWaitTimeout  time.Duration
 	ConfigMapName        NamespacedName
 	Namespace            string
+	IgnoredAnnotations   []string
 
 	EnableJsonLogging bool
 }

@@ -184,6 +184,9 @@ func (c *Controller) modifyConfigFromEnvironment() {
 	if c.config.NoTeamsAPI {
 		c.opConfig.EnableTeamsAPI = false
 	}
+
+	c.opConfig.IgnoredAnnotations = append(c.opConfig.IgnoredAnnotations, c.config.IgnoredAnnotations...)
+
 	scalyrAPIKey := os.Getenv("SCALYR_API_KEY")
 	if scalyrAPIKey != "" {
 		c.opConfig.ScalyrAPIKey = scalyrAPIKey

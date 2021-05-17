@@ -1,9 +1,10 @@
-package k8sutil
+package cluster
 
 import (
 	"strings"
 	"testing"
 
+	"github.com/zalando/postgres-operator/pkg/util/config"
 	"github.com/zalando/postgres-operator/pkg/util/constants"
 
 	v1 "k8s.io/api/core/v1"
@@ -21,6 +22,15 @@ func newsService(ann map[string]string, svcT v1.ServiceType, lbSr []string) *v1.
 }
 
 func TestSameService(t *testing.T) {
+	cluster := Cluster{
+		Config: Config{
+			OpConfig: config.Config{
+				IgnoredAnnotations: []string{
+					"k8s.v1.cni.cncf.io/network-status",
+				},
+			},
+		},
+	}
 	tests := []struct {
 		about   string
 		current *v1.Service
@@ -288,11 +298,26 @@ func TestSameService(t *testing.T) {
 			// Test just the prefix to avoid flakiness and map sorting
 			reason: `new service's annotations does not match the current one: Added `,
 		},
+		{
+			about: "ignored annotations",
+			current: newsService(
+				map[string]string{},
+				v1.ServiceTypeLoadBalancer,
+				[]string{"128.141.0.0/16", "137.138.0.0/16"}),
+			new: newsService(
+				map[string]string{
+					"k8s.v1.cni.cncf.io/network-status": "up",
+				},
+				v1.ServiceTypeLoadBalancer,
+				[]string{"128.141.0.0/16", "137.138.0.0/16"}),
+			match: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.about, func(t *testing.T) {
-			match, reason := SameService(tt.current, tt.new)
+			match, reason := cluster.SameService(tt.current, tt.new)
 			if match && !tt.match {
+				t.Logf("match=%v current=%v, old=%v reason=%s", match, tt.current.Annotations, tt.new.Annotations, reason)
 				t.Errorf("expected services to do not match: '%q' and '%q'", tt.current, tt.new)
 				return
 			}

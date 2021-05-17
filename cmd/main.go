@@ -2,12 +2,14 @@ package main
 
 import (
 	"flag"
-	log "github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/zalando/postgres-operator/pkg/controller"
 	"github.com/zalando/postgres-operator/pkg/spec"
@@ -36,6 +38,7 @@ func init() {
 	flag.BoolVar(&config.NoTeamsAPI, "noteamsapi", false, "Disable all access to the teams API")
 	flag.Parse()
 
+	config.IgnoredAnnotations = strings.Split(os.Getenv("IGNORED_ANNOTATIONS"), ",")
 	config.EnableJsonLogging = os.Getenv("ENABLE_JSON_LOGGING") == "true"
 
 	configMapRawName := os.Getenv("CONFIG_MAP_NAME")

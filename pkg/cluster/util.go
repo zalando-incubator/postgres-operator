@@ -186,6 +186,70 @@ func logNiceDiff(log *logrus.Entry, old, new interface{}) {
 	}
 }
 
+func (c *Cluster) compareAnnotations(old, new map[string]string) (bool, string) {
+	ignored := make(map[string]bool)
+	for _, ignore := range c.OpConfig.IgnoredAnnotations {
+		ignored[ignore] = true
+	}
+
+	// changed := false
+	reason := ""
+
+	for key := range old {
+		if _, ok := ignored[key]; ok {
+			continue
+		}
+		if _, ok := new[key]; !ok {
+			reason += fmt.Sprintf(" Removed '%s'.", key)
+		}
+	}
+
+	for key := range new {
+		if _, ok := ignored[key]; ok {
+			continue
+		}
+
+		v, ok := old[key]
+		if !ok {
+			reason += fmt.Sprintf(" Added '%s' with value '%s'.", key, new[key])
+		} else if v != new[key] {
+			reason += fmt.Sprintf(" '%s' changed from '%s' to '%s'.", key, v, new[key])
+		}
+	}
+
+	if reason != "" {
+		return true, reason
+	}
+	return false, ""
+
+}
+
+// SameService compares the Services
+func (c *Cluster) SameService(old, new *v1.Service) (bool, string) {
+	//TODO: improve comparison
+	if old.Spec.Type != new.Spec.Type {
+		return false, fmt.Sprintf("new service's type %q does not match the current one %q",
+			new.Spec.Type, old.Spec.Type)
+	}
+
+	oldSourceRanges := old.Spec.LoadBalancerSourceRanges
+	newSourceRanges := new.Spec.LoadBalancerSourceRanges
+
+	/* work around Kubernetes 1.6 serializing [] as nil. See https://github.com/kubernetes/kubernetes/issues/43203 */
+	if (len(oldSourceRanges) != 0) || (len(newSourceRanges) != 0) {
+		if !reflect.DeepEqual(oldSourceRanges, newSourceRanges) {
+			return false, "new service's LoadBalancerSourceRange does not match the current one"
+		}
+	}
+
+	if changed, reason := c.compareAnnotations(old.Annotations, new.Annotations); changed {
+		return !changed, "new service's annotations does not match the current one:" + reason
+	}
+
+	return true, ""
+
+}
+
 func (c *Cluster) logStatefulSetChanges(old, new *appsv1.StatefulSet, isUpdate bool, reasons []string) {
 	if isUpdate {
 		c.logger.Infof("statefulset %s has been changed", util.NameFromMeta(old.ObjectMeta))

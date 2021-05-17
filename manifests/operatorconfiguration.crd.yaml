@@ -10,549 +10,553 @@ spec:
     plural: operatorconfigurations
     singular: operatorconfiguration
     shortNames:
-    - opconfig
+      - opconfig
     categories:
-    - all
+      - all
   scope: Namespaced
   versions:
-  - name: v1
-    served: true
-    storage: true
-    subresources:
-      status: {}
-    additionalPrinterColumns:
-    - name: Image
-      type: string
-      description: Spilo image to be used for Pods
-      jsonPath: .configuration.docker_image
-    - name: Cluster-Label
-      type: string
-      description: Label for K8s resources created by operator
-      jsonPath: .configuration.kubernetes.cluster_name_label
-    - name: Service-Account
-      type: string
-      description: Name of service account to be used
-      jsonPath: .configuration.kubernetes.pod_service_account_name
-    - name: Min-Instances
-      type: integer
-      description: Minimum number of instances per Postgres cluster
-      jsonPath: .configuration.min_instances
-    - name: Age
-      type: date
-      jsonPath: .metadata.creationTimestamp
-    schema:
-      openAPIV3Schema:
-        type: object
-        required:
-          - kind
-          - apiVersion
-          - configuration
-        properties:
-          kind:
-            type: string
-            enum:
-            - OperatorConfiguration
-          apiVersion:
-            type: string
-            enum:
-            - acid.zalan.do/v1
-          configuration:
-            type: object
-            properties:
-              docker_image:
-                type: string
-                default: "registry.opensource.zalan.do/acid/spilo-13:2.0-p6"
-              enable_crd_validation:
-                type: boolean
-                default: true
-              enable_lazy_spilo_upgrade:
-                type: boolean
-                default: false
-              enable_pgversion_env_var:
-                type: boolean
-                default: true
-              enable_shm_volume:
-                type: boolean
-                default: true
-              enable_spilo_wal_path_compat:
-                type: boolean
-                default: false
-              etcd_host:
-                type: string
-                default: ""
-              kubernetes_use_configmaps:
-                type: boolean
-                default: false
-              max_instances:
-                type: integer
-                minimum: -1  # -1 = disabled
-                default: -1
-              min_instances:
-                type: integer
-                minimum: -1  # -1 = disabled
-                default: -1
-              resync_period:
-                type: string
-                default: "30m"
-              repair_period:
-                type: string
-                default: "5m"
-              set_memory_request_to_limit:
-                type: boolean
-                default: false
-              sidecar_docker_images:
-                type: object
-                additionalProperties:
-                  type: string
-              sidecars:
-                type: array
-                nullable: true
-                items:
-                  type: object
-                  x-kubernetes-preserve-unknown-fields: true
-              workers:
-                type: integer
-                minimum: 1
-                default: 8
-              users:
-                type: object
-                properties:
-                  replication_username:
-                     type: string
-                     default: standby
-                  super_username:
-                     type: string
-                     default: postgres
-              major_version_upgrade:
-                type: object
-                properties:
-                  major_version_upgrade_mode:
-                    type: string
-                    default: "off"
-                  minimal_major_version:
-                    type: string
-                    default: "9.5"
-                  target_major_version:
-                    type: string
-                    default: "13"
-              kubernetes:
-                type: object
-                properties:
-                  additional_pod_capabilities:
-                    type: array
-                    items:
-                      type: string
-                  cluster_domain:
-                    type: string
-                    default: "cluster.local"
-                  cluster_labels:
-                    type: object
-                    additionalProperties:
-                      type: string
-                    default:
-                      application: spilo
-                  cluster_name_label:
-                    type: string
-                    default: "cluster-name"
-                  custom_pod_annotations:
-                    type: object
-                    additionalProperties:
-                      type: string
-                  delete_annotation_date_key:
-                    type: string
-                  delete_annotation_name_key:
-                    type: string
-                  downscaler_annotations:
-                    type: array
-                    items:
-                      type: string
-                  enable_init_containers:
-                    type: boolean
-                    default: true
-                  enable_pod_antiaffinity:
-                    type: boolean
-                    default: false
-                  enable_pod_disruption_budget:
-                    type: boolean
-                    default: true
-                  enable_sidecars:
-                    type: boolean
-                    default: true
-                  infrastructure_roles_secret_name:
-                    type: string
-                  infrastructure_roles_secrets:
-                    type: array
-                    nullable: true
-                    items:
-                      type: object
-                      required:
-                        - secretname
-                        - userkey
-                        - passwordkey
-                      properties:
-                        secretname:
-                          type: string
-                        userkey:
-                          type: string
-                        passwordkey:
-                          type: string
-                        rolekey:
-                          type: string
-                        defaultuservalue:
-                          type: string
-                        defaultrolevalue:
-                          type: string
-                        details:
-                          type: string
-                        template:
-                          type: boolean
-                  inherited_annotations:
-                    type: array
-                    items:
-                      type: string
-                  inherited_labels:
-                    type: array
-                    items:
-                      type: string
-                  master_pod_move_timeout:
-                    type: string
-                    default: "20m"
-                  node_readiness_label:
-                    type: object
-                    additionalProperties:
-                      type: string
-                  oauth_token_secret_name:
-                    type: string
-                    default: "postgresql-operator"
-                  pdb_name_format:
-                    type: string
-                    default: "postgres-{cluster}-pdb"
-                  pod_antiaffinity_topology_key:
-                    type: string
-                    default: "kubernetes.io/hostname"
-                  pod_environment_configmap:
-                    type: string
-                  pod_environment_secret:
-                    type: string
-                  pod_management_policy:
-                    type: string
-                    enum:
-                      - "ordered_ready"
-                      - "parallel"
-                    default: "ordered_ready"
-                  pod_priority_class_name:
-                    type: string
-                  pod_role_label:
-                    type: string
-                    default: "spilo-role"
-                  pod_service_account_definition:
-                    type: string
-                    default: ""
-                  pod_service_account_name:
-                    type: string
-                    default: "postgres-pod"
-                  pod_service_account_role_binding_definition:
-                    type: string
-                    default: ""
-                  pod_terminate_grace_period:
-                    type: string
-                    default: "5m"
-                  secret_name_template:
-                    type: string
-                    default: "{username}.{cluster}.credentials.{tprkind}.{tprgroup}"
-                  spilo_allow_privilege_escalation:
-                    type: boolean
-                    default: true
-                  spilo_runasuser:
-                    type: integer
-                  spilo_runasgroup:
-                    type: integer
-                  spilo_fsgroup:
-                    type: integer
-                  spilo_privileged:
-                    type: boolean
-                    default: false
-                  storage_resize_mode:
-                    type: string
-                    enum:
-                      - "ebs"
-                      - "pvc"
-                      - "off"
-                    default: "pvc"
-                  toleration:
-                    type: object
-                    additionalProperties:
-                      type: string
-                  watched_namespace:
-                    type: string
-              postgres_pod_resources:
-                type: object
-                properties:
-                  default_cpu_limit:
-                    type: string
-                    pattern: '^(\d+m|\d+(\.\d{1,3})?)$'
-                    default: "1"
-                  default_cpu_request:
-                    type: string
-                    pattern: '^(\d+m|\d+(\.\d{1,3})?)$'
-                    default: "100m"
-                  default_memory_limit:
-                    type: string
-                    pattern: '^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$'
-                    default: "500Mi"
-                  default_memory_request:
-                    type: string
-                    pattern: '^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$'
-                    default: "100Mi"
-                  min_cpu_limit:
-                    type: string
-                    pattern: '^(\d+m|\d+(\.\d{1,3})?)$'
-                    default: "250m"
-                  min_memory_limit:
-                    type: string
-                    pattern: '^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$'
-                    default: "250Mi"
-              timeouts:
-                type: object
-                properties:
-                  pod_label_wait_timeout:
-                    type: string
-                    default: "10m"
-                  pod_deletion_wait_timeout:
-                    type: string
-                    default: "10m"
-                  ready_wait_interval:
-                    type: string
-                    default: "4s"
-                  ready_wait_timeout:
-                    type: string
-                    default: "30s"
-                  resource_check_interval:
-                    type: string
-                    default: "3s"
-                  resource_check_timeout:
-                    type: string
-                    default: "10m"
-              load_balancer:
-                type: object
-                properties:
-                  custom_service_annotations:
-                    type: object
-                    additionalProperties:
-                      type: string
-                  db_hosted_zone:
-                    type: string
-                    default: "db.example.com"
-                  enable_master_load_balancer:
-                    type: boolean
-                    default: true
-                  enable_replica_load_balancer:
-                    type: boolean
-                    default: false
-                  external_traffic_policy:
-                    type: string
-                    enum:
-                      - "Cluster"
-                      - "Local"
-                    default: "Cluster"
-                  master_dns_name_format:
-                    type: string
-                    default: "{cluster}.{team}.{hostedzone}"
-                  replica_dns_name_format:
-                    type: string
-                    default: "{cluster}-repl.{team}.{hostedzone}"
-              aws_or_gcp:
-                type: object
-                properties:
-                  additional_secret_mount:
-                    type: string
-                  additional_secret_mount_path:
-                    type: string
-                    default: "/meta/credentials"
-                  aws_region:
-                    type: string
-                    default: "eu-central-1"
-                  enable_ebs_gp3_migration:
-                    type: boolean
-                    default: false
-                  enable_ebs_gp3_migration_max_size:
-                    type: integer
-                    default: 1000
-                  gcp_credentials:
-                    type: string
-                  kube_iam_role:
-                    type: string
-                  log_s3_bucket:
-                    type: string
-                  wal_gs_bucket:
-                    type: string
-                  wal_s3_bucket:
-                    type: string
-              logical_backup:
-                type: object
-                properties:
-                  logical_backup_docker_image:
-                    type: string
-                    default: "registry.opensource.zalan.do/acid/logical-backup:v1.6.2"
-                  logical_backup_google_application_credentials:
-                    type: string
-                  logical_backup_job_prefix:
-                    type: string
-                    default: "logical-backup-"
-                  logical_backup_provider:
-                    type: string
-                    default: "s3"
-                  logical_backup_s3_access_key_id:
-                    type: string
-                  logical_backup_s3_bucket:
-                    type: string
-                  logical_backup_s3_endpoint:
-                    type: string
-                  logical_backup_s3_region:
-                    type: string
-                  logical_backup_s3_secret_access_key:
-                    type: string
-                  logical_backup_s3_sse:
-                    type: string
-                  logical_backup_schedule:
-                    type: string
-                    pattern: '^(\d+|\*)(/\d+)?(\s+(\d+|\*)(/\d+)?){4}$'
-                    default: "30 00 * * *"
-              debug:
-                type: object
-                properties:
-                  debug_logging:
-                    type: boolean
-                    default: true
-                  enable_database_access:
-                    type: boolean
-                    default: true
-              teams_api:
-                type: object
-                properties:
-                  enable_admin_role_for_users:
-                    type: boolean
-                    default: true
-                  enable_postgres_team_crd:
-                    type: boolean
-                    default: true
-                  enable_postgres_team_crd_superusers:
-                    type: boolean
-                    default: false
-                  enable_team_superuser:
-                    type: boolean
-                    default: false
-                  enable_teams_api:
-                    type: boolean
-                    default: true
-                  pam_configuration:
-                    type: string
-                    default: "https://info.example.com/oauth2/tokeninfo?access_token= uid realm=/employees"
-                  pam_role_name:
-                    type: string
-                    default: "zalandos"
-                  postgres_superuser_teams:
-                    type: array
-                    items:
-                      type: string
-                  protected_role_names:
-                    type: array
-                    items:
-                      type: string
-                    default:
-                    - admin
-                  team_admin_role:
-                    type: string
-                    default: "admin"
-                  team_api_role_configuration:
-                    type: object
-                    additionalProperties:
-                      type: string
-                    default:
-                      log_statement: all
-                  teams_api_url:
-                    type: string
-                    default: "https://teams.example.com/api/"
-              logging_rest_api:
-                type: object
-                properties:
-                  api_port:
-                    type: integer
-                    default: 8080
-                  cluster_history_entries:
-                    type: integer
-                    default: 1000
-                  ring_log_lines:
-                    type: integer
-                    default: 100
-              scalyr:  # deprecated
-                type: object
-                properties:
-                  scalyr_api_key:
-                    type: string
-                  scalyr_cpu_limit:
-                    type: string
-                    pattern: '^(\d+m|\d+(\.\d{1,3})?)$'
-                    default: "1"
-                  scalyr_cpu_request:
-                    type: string
-                    pattern: '^(\d+m|\d+(\.\d{1,3})?)$'
-                    default: "100m"
-                  scalyr_image:
-                    type: string
-                  scalyr_memory_limit:
-                    type: string
-                    pattern: '^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$'
-                    default: "500Mi"
-                  scalyr_memory_request:
-                    type: string
-                    pattern: '^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$'
-                    default: "50Mi"
-                  scalyr_server_url:
-                    type: string
-                    default: "https://upload.eu.scalyr.com"
-              connection_pooler:
-                type: object
-                properties:
-                  connection_pooler_schema:
-                    type: string
-                    default: "pooler"
-                  connection_pooler_user:
-                    type: string
-                    default: "pooler"
-                  connection_pooler_image:
-                    type: string
-                    default: "registry.opensource.zalan.do/acid/pgbouncer:master-16"
-                  connection_pooler_max_db_connections:
-                    type: integer
-                    default: 60
-                  connection_pooler_mode:
-                    type: string
-                    enum:
-                      - "session"
-                      - "transaction"
-                    default: "transaction"
-                  connection_pooler_number_of_instances:
-                    type: integer
-                    minimum: 1
-                    default: 2
-                  connection_pooler_default_cpu_limit:
-                    type: string
-                    pattern: '^(\d+m|\d+(\.\d{1,3})?)$'
-                    default: "1"
-                  connection_pooler_default_cpu_request:
-                    type: string
-                    pattern: '^(\d+m|\d+(\.\d{1,3})?)$'
-                    default: "500m"
-                  connection_pooler_default_memory_limit:
-                    type: string
-                    pattern: '^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$'
-                    default: "100Mi"
-                  connection_pooler_default_memory_request:
-                    type: string
-                    pattern: '^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$'
-                    default: "100Mi"
-          status:
-            type: object
-            additionalProperties:
+    - name: v1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Image
+          type: string
+          description: Spilo image to be used for Pods
+          jsonPath: .configuration.docker_image
+        - name: Cluster-Label
+          type: string
+          description: Label for K8s resources created by operator
+          jsonPath: .configuration.kubernetes.cluster_name_label
+        - name: Service-Account
+          type: string
+          description: Name of service account to be used
+          jsonPath: .configuration.kubernetes.pod_service_account_name
+        - name: Min-Instances
+          type: integer
+          description: Minimum number of instances per Postgres cluster
+          jsonPath: .configuration.min_instances
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - kind
+            - apiVersion
+            - configuration
+          properties:
+            kind:
               type: string
+              enum:
+                - OperatorConfiguration
+            apiVersion:
+              type: string
+              enum:
+                - acid.zalan.do/v1
+            configuration:
+              type: object
+              properties:
+                docker_image:
+                  type: string
+                  default: "registry.opensource.zalan.do/acid/spilo-13:2.0-p6"
+                enable_crd_validation:
+                  type: boolean
+                  default: true
+                enable_lazy_spilo_upgrade:
+                  type: boolean
+                  default: false
+                enable_pgversion_env_var:
+                  type: boolean
+                  default: true
+                enable_shm_volume:
+                  type: boolean
+                  default: true
+                enable_spilo_wal_path_compat:
+                  type: boolean
+                  default: false
+                etcd_host:
+                  type: string
+                  default: ""
+                kubernetes_use_configmaps:
+                  type: boolean
+                  default: false
+                max_instances:
+                  type: integer
+                  minimum: -1 # -1 = disabled
+                  default: -1
+                min_instances:
+                  type: integer
+                  minimum: -1 # -1 = disabled
+                  default: -1
+                resync_period:
+                  type: string
+                  default: "30m"
+                repair_period:
+                  type: string
+                  default: "5m"
+                set_memory_request_to_limit:
+                  type: boolean
+                  default: false
+                sidecar_docker_images:
+                  type: object
+                  additionalProperties:
+                    type: string
+                sidecars:
+                  type: array
+                  nullable: true
+                  items:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                workers:
+                  type: integer
+                  minimum: 1
+                  default: 8
+                users:
+                  type: object
+                  properties:
+                    replication_username:
+                      type: string
+                      default: standby
+                    super_username:
+                      type: string
+                      default: postgres
+                major_version_upgrade:
+                  type: object
+                  properties:
+                    major_version_upgrade_mode:
+                      type: string
+                      default: "off"
+                    minimal_major_version:
+                      type: string
+                      default: "9.5"
+                    target_major_version:
+                      type: string
+                      default: "13"
+                kubernetes:
+                  type: object
+                  properties:
+                    additional_pod_capabilities:
+                      type: array
+                      items:
+                        type: string
+                    cluster_domain:
+                      type: string
+                      default: "cluster.local"
+                    cluster_labels:
+                      type: object
+                      additionalProperties:
+                        type: string
+                      default:
+                        application: spilo
+                    cluster_name_label:
+                      type: string
+                      default: "cluster-name"
+                    ignored_annotations:
+                      type: array
+                      items:
+                        type: string
+                    custom_pod_annotations:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    delete_annotation_date_key:
+                      type: string
+                    delete_annotation_name_key:
+                      type: string
+                    downscaler_annotations:
+                      type: array
+                      items:
+                        type: string
+                    enable_init_containers:
+                      type: boolean
+                      default: true
+                    enable_pod_antiaffinity:
+                      type: boolean
+                      default: false
+                    enable_pod_disruption_budget:
+                      type: boolean
+                      default: true
+                    enable_sidecars:
+                      type: boolean
+                      default: true
+                    infrastructure_roles_secret_name:
+                      type: string
+                    infrastructure_roles_secrets:
+                      type: array
+                      nullable: true
+                      items:
+                        type: object
+                        required:
+                          - secretname
+                          - userkey
+                          - passwordkey
+                        properties:
+                          secretname:
+                            type: string
+                          userkey:
+                            type: string
+                          passwordkey:
+                            type: string
+                          rolekey:
+                            type: string
+                          defaultuservalue:
+                            type: string
+                          defaultrolevalue:
+                            type: string
+                          details:
+                            type: string
+                          template:
+                            type: boolean
+                    inherited_annotations:
+                      type: array
+                      items:
+                        type: string
+                    inherited_labels:
+                      type: array
+                      items:
+                        type: string
+                    master_pod_move_timeout:
+                      type: string
+                      default: "20m"
+                    node_readiness_label:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    oauth_token_secret_name:
+                      type: string
+                      default: "postgresql-operator"
+                    pdb_name_format:
+                      type: string
+                      default: "postgres-{cluster}-pdb"
+                    pod_antiaffinity_topology_key:
+                      type: string
+                      default: "kubernetes.io/hostname"
+                    pod_environment_configmap:
+                      type: string
+                    pod_environment_secret:
+                      type: string
+                    pod_management_policy:
+                      type: string
+                      enum:
+                        - "ordered_ready"
+                        - "parallel"
+                      default: "ordered_ready"
+                    pod_priority_class_name:
+                      type: string
+                    pod_role_label:
+                      type: string
+                      default: "spilo-role"
+                    pod_service_account_definition:
+                      type: string
+                      default: ""
+                    pod_service_account_name:
+                      type: string
+                      default: "postgres-pod"
+                    pod_service_account_role_binding_definition:
+                      type: string
+                      default: ""
+                    pod_terminate_grace_period:
+                      type: string
+                      default: "5m"
+                    secret_name_template:
+                      type: string
+                      default: "{username}.{cluster}.credentials.{tprkind}.{tprgroup}"
+                    spilo_allow_privilege_escalation:
+                      type: boolean
+                      default: true
+                    spilo_runasuser:
+                      type: integer
+                    spilo_runasgroup:
+                      type: integer
+                    spilo_fsgroup:
+                      type: integer
+                    spilo_privileged:
+                      type: boolean
+                      default: false
+                    storage_resize_mode:
+                      type: string
+                      enum:
+                        - "ebs"
+                        - "pvc"
+                        - "off"
+                      default: "pvc"
+                    toleration:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    watched_namespace:
+                      type: string
+                postgres_pod_resources:
+                  type: object
+                  properties:
+                    default_cpu_limit:
+                      type: string
+                      pattern: '^(\d+m|\d+(\.\d{1,3})?)$'
+                      default: "1"
+                    default_cpu_request:
+                      type: string
+                      pattern: '^(\d+m|\d+(\.\d{1,3})?)$'
+                      default: "100m"
+                    default_memory_limit:
+                      type: string
+                      pattern: '^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$'
+                      default: "500Mi"
+                    default_memory_request:
+                      type: string
+                      pattern: '^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$'
+                      default: "100Mi"
+                    min_cpu_limit:
+                      type: string
+                      pattern: '^(\d+m|\d+(\.\d{1,3})?)$'
+                      default: "250m"
+                    min_memory_limit:
+                      type: string
+                      pattern: '^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$'
+                      default: "250Mi"
+                timeouts:
+                  type: object
+                  properties:
+                    pod_label_wait_timeout:
+                      type: string
+                      default: "10m"
+                    pod_deletion_wait_timeout:
+                      type: string
+                      default: "10m"
+                    ready_wait_interval:
+                      type: string
+                      default: "4s"
+                    ready_wait_timeout:
+                      type: string
+                      default: "30s"
+                    resource_check_interval:
+                      type: string
+                      default: "3s"
+                    resource_check_timeout:
+                      type: string
+                      default: "10m"
+                load_balancer:
+                  type: object
+                  properties:
+                    custom_service_annotations:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    db_hosted_zone:
+                      type: string
+                      default: "db.example.com"
+                    enable_master_load_balancer:
+                      type: boolean
+                      default: true
+                    enable_replica_load_balancer:
+                      type: boolean
+                      default: false
+                    external_traffic_policy:
+                      type: string
+                      enum:
+                        - "Cluster"
+                        - "Local"
+                      default: "Cluster"
+                    master_dns_name_format:
+                      type: string
+                      default: "{cluster}.{team}.{hostedzone}"
+                    replica_dns_name_format:
+                      type: string
+                      default: "{cluster}-repl.{team}.{hostedzone}"
+                aws_or_gcp:
+                  type: object
+                  properties:
+                    additional_secret_mount:
+                      type: string
+                    additional_secret_mount_path:
+                      type: string
+                      default: "/meta/credentials"
+                    aws_region:
+                      type: string
+                      default: "eu-central-1"
+                    enable_ebs_gp3_migration:
+                      type: boolean
+                      default: false
+                    enable_ebs_gp3_migration_max_size:
+                      type: integer
+                      default: 1000
+                    gcp_credentials:
+                      type: string
+                    kube_iam_role:
+                      type: string
+                    log_s3_bucket:
+                      type: string
+                    wal_gs_bucket:
+                      type: string
+                    wal_s3_bucket:
+                      type: string
+                logical_backup:
+                  type: object
+                  properties:
+                    logical_backup_docker_image:
+                      type: string
+                      default: "registry.opensource.zalan.do/acid/logical-backup:v1.6.2"
+                    logical_backup_google_application_credentials:
+                      type: string
+                    logical_backup_job_prefix:
+                      type: string
+                      default: "logical-backup-"
+                    logical_backup_provider:
+                      type: string
+                      default: "s3"
+                    logical_backup_s3_access_key_id:
+                      type: string
+                    logical_backup_s3_bucket:
+                      type: string
+                    logical_backup_s3_endpoint:
+                      type: string
+                    logical_backup_s3_region:
+                      type: string
+                    logical_backup_s3_secret_access_key:
+                      type: string
+                    logical_backup_s3_sse:
+                      type: string
+                    logical_backup_schedule:
+                      type: string
+                      pattern: '^(\d+|\*)(/\d+)?(\s+(\d+|\*)(/\d+)?){4}$'
+                      default: "30 00 * * *"
+                debug:
+                  type: object
+                  properties:
+                    debug_logging:
+                      type: boolean
+                      default: true
+                    enable_database_access:
+                      type: boolean
+                      default: true
+                teams_api:
+                  type: object
+                  properties:
+                    enable_admin_role_for_users:
+                      type: boolean
+                      default: true
+                    enable_postgres_team_crd:
+                      type: boolean
+                      default: true
+                    enable_postgres_team_crd_superusers:
+                      type: boolean
+                      default: false
+                    enable_team_superuser:
+                      type: boolean
+                      default: false
+                    enable_teams_api:
+                      type: boolean
+                      default: true
+                    pam_configuration:
+                      type: string
+                      default: "https://info.example.com/oauth2/tokeninfo?access_token= uid realm=/employees"
+                    pam_role_name:
+                      type: string
+                      default: "zalandos"
+                    postgres_superuser_teams:
+                      type: array
+                      items:
+                        type: string
+                    protected_role_names:
+                      type: array
+                      items:
+                        type: string
+                      default:
+                        - admin
+                    team_admin_role:
+                      type: string
+                      default: "admin"
+                    team_api_role_configuration:
+                      type: object
+                      additionalProperties:
+                        type: string
+                      default:
+                        log_statement: all
+                    teams_api_url:
+                      type: string
+                      default: "https://teams.example.com/api/"
+                logging_rest_api:
+                  type: object
+                  properties:
+                    api_port:
+                      type: integer
+                      default: 8080
+                    cluster_history_entries:
+                      type: integer
+                      default: 1000
+                    ring_log_lines:
+                      type: integer
+                      default: 100
+                scalyr: # deprecated
+                  type: object
+                  properties:
+                    scalyr_api_key:
+                      type: string
+                    scalyr_cpu_limit:
+                      type: string
+                      pattern: '^(\d+m|\d+(\.\d{1,3})?)$'
+                      default: "1"
+                    scalyr_cpu_request:
+                      type: string
+                      pattern: '^(\d+m|\d+(\.\d{1,3})?)$'
+                      default: "100m"
+                    scalyr_image:
+                      type: string
+                    scalyr_memory_limit:
+                      type: string
+                      pattern: '^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$'
+                      default: "500Mi"
+                    scalyr_memory_request:
+                      type: string
+                      pattern: '^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$'
+                      default: "50Mi"
+                    scalyr_server_url:
+                      type: string
+                      default: "https://upload.eu.scalyr.com"
+                connection_pooler:
+                  type: object
+                  properties:
+                    connection_pooler_schema:
+                      type: string
+                      default: "pooler"
+                    connection_pooler_user:
+                      type: string
+                      default: "pooler"
+                    connection_pooler_image:
+                      type: string
+                      default: "registry.opensource.zalan.do/acid/pgbouncer:master-16"
+                    connection_pooler_max_db_connections:
+                      type: integer
+                      default: 60
+                    connection_pooler_mode:
+                      type: string
+                      enum:
+                        - "session"
+                        - "transaction"
+                      default: "transaction"
+                    connection_pooler_number_of_instances:
+                      type: integer
+                      minimum: 1
+                      default: 2
+                    connection_pooler_default_cpu_limit:
+                      type: string
+                      pattern: '^(\d+m|\d+(\.\d{1,3})?)$'
+                      default: "1"
+                    connection_pooler_default_cpu_request:
+                      type: string
+                      pattern: '^(\d+m|\d+(\.\d{1,3})?)$'
+                      default: "500m"
+                    connection_pooler_default_memory_limit:
+                      type: string
+                      pattern: '^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$'
+                      default: "100Mi"
+                    connection_pooler_default_memory_request:
+                      type: string
+                      pattern: '^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$'
+                      default: "100Mi"
+            status:
+              type: object
+              additionalProperties:
+                type: string

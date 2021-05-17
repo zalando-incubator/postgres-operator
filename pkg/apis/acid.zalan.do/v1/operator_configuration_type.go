@@ -74,6 +74,7 @@ type KubernetesMetaConfiguration struct {
 	InfrastructureRolesDefs                []*config.InfrastructureRole `json:"infrastructure_roles_secrets,omitempty"`
 	PodRoleLabel                           string                       `json:"pod_role_label,omitempty"`
 	ClusterLabels                          map[string]string            `json:"cluster_labels,omitempty"`
+	IgnoredAnnotations                     []string                     `json:"ignored_annotations,omitempty"`
 	InheritedLabels                        []string                     `json:"inherited_labels,omitempty"`
 	InheritedAnnotations                   []string                     `json:"inherited_annotations,omitempty"`
 	DownscalerAnnotations                  []string                     `json:"downscaler_annotations,omitempty"`

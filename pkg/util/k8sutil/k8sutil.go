@@ -197,57 +197,6 @@ func (client *KubernetesClient) SetPostgresCRDStatus(clusterName spec.Namespaced
 	return pg, nil
 }
 
-// SameService compares the Services
-func SameService(cur, new *v1.Service) (match bool, reason string) {
-	//TODO: improve comparison
-	if cur.Spec.Type != new.Spec.Type {
-		return false, fmt.Sprintf("new service's type %q does not match the current one %q",
-			new.Spec.Type, cur.Spec.Type)
-	}
-
-	oldSourceRanges := cur.Spec.LoadBalancerSourceRanges
-	newSourceRanges := new.Spec.LoadBalancerSourceRanges
-
-	/* work around Kubernetes 1.6 serializing [] as nil. See https://github.com/kubernetes/kubernetes/issues/43203 */
-	if (len(oldSourceRanges) != 0) || (len(newSourceRanges) != 0) {
-		if !reflect.DeepEqual(oldSourceRanges, newSourceRanges) {
-			return false, "new service's LoadBalancerSourceRange does not match the current one"
-		}
-	}
-
-	match = true
-
-	reasonPrefix := "new service's annotations does not match the current one:"
-	for ann := range cur.Annotations {
-		if _, ok := new.Annotations[ann]; !ok {
-			match = false
-			if len(reason) == 0 {
-				reason = reasonPrefix
-			}
-			reason += fmt.Sprintf(" Removed '%s'.", ann)
-		}
-	}
-
-	for ann := range new.Annotations {
-		v, ok := cur.Annotations[ann]
-		if !ok {
-			if len(reason) == 0 {
-				reason = reasonPrefix
-			}
-			reason += fmt.Sprintf(" Added '%s' with value '%s'.", ann, new.Annotations[ann])
-			match = false
-		} else if v != new.Annotations[ann] {
-			if len(reason) == 0 {
-				reason = reasonPrefix
-			}
-			reason += fmt.Sprintf(" '%s' changed from '%s' to '%s'.", ann, v, new.Annotations[ann])
-			match = false
-		}
-	}
-
-	return match, reason
-}
-
 // SamePDB compares the PodDisruptionBudgets
 func SamePDB(cur, new *policybeta1.PodDisruptionBudget) (match bool, reason string) {
 	//TODO: improve comparison
