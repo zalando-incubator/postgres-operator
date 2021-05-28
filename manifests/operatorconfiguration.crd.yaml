@@ -414,6 +414,8 @@ spec:
                     type: string
                   logical_backup_s3_sse:
                     type: string
+                  logical_backup_s3_retention_time:
+                    type: string
                   logical_backup_schedule:
                     type: string
                     pattern: '^(\d+|\*)(/\d+)?(\s+(\d+|\*)(/\d+)?){4}$'

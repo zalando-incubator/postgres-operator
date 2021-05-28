@@ -625,6 +625,11 @@ grouped under the `logical_backup` key.
   Specify server side encryption that S3 storage is using. If empty string
   is specified, no argument will be passed to `aws s3` command. Default: "AES256".
 
+* **logical_backup_s3_retention_time**
+  Specify a retention time for logical backups stored in S3. Backups older than the specified retention 
+  time will be deleted after a new backup was uploaded. If empty, all backups will be kept. Example values are
+  "3 days", "2 weeks", or "1 month". The default is empty.
+
 * **logical_backup_schedule**
   Backup schedule in the cron format. Please take the
   [reference schedule format](https://kubernetes.io/docs/tasks/job/automated-tasks-with-cron-jobs/#schedule)

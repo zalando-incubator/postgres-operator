@@ -2052,6 +2052,10 @@ func (c *Cluster) generateLogicalBackupPodEnvVars() []v1.EnvVar {
 			Value: c.OpConfig.LogicalBackup.LogicalBackupS3SSE,
 		},
 		{
+			Name:  "LOGICAL_BACKUP_S3_RETENTION_TIME",
+			Value: c.OpConfig.LogicalBackup.LogicalBackupS3RetentionTime,
+		},
+		{
 			Name:  "LOGICAL_BACKUP_S3_BUCKET_SCOPE_SUFFIX",
 			Value: getBucketScopeSuffix(string(c.Postgresql.GetUID())),
 		},

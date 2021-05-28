@@ -74,6 +74,7 @@ data:
   # logical_backup_s3_endpoint: ""
   # logical_backup_s3_secret_access_key: ""
   logical_backup_s3_sse: "AES256"
+  # logical_backup_s3_retention_time: ""
   logical_backup_schedule: "30 00 * * *"
   major_version_upgrade_mode: "manual"
   master_dns_name_format: "{cluster}.{team}.{hostedzone}"

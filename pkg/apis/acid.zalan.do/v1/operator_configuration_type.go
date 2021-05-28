@@ -206,6 +206,7 @@ type OperatorLogicalBackupConfiguration struct {
 	S3AccessKeyID                string `json:"logical_backup_s3_access_key_id,omitempty"`
 	S3SecretAccessKey            string `json:"logical_backup_s3_secret_access_key,omitempty"`
 	S3SSE                        string `json:"logical_backup_s3_sse,omitempty"`
+	RetentionTime                string `json:"logical_backup_s3_retention_time,omitempty"`
 	GoogleApplicationCredentials string `json:"logical_backup_google_application_credentials,omitempty"`
 	JobPrefix                    string `json:"logical_backup_job_prefix,omitempty"`
 }

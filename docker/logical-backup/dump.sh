@@ -15,6 +15,9 @@ TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
 K8S_API_URL=https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT/api/v1
 CERT=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 
+LOGICAL_BACKUP_PROVIDER=${LOGICAL_BACKUP_PROVIDER:="s3"}
+LOGICAL_BACKUP_S3_RETENTION_TIME=${LOGICAL_BACKUP_S3_RETENTION_TIME:=""}
+
 function estimate_size {
     "$PG_BIN"/psql -tqAc "${ALL_DB_SIZE_QUERY}"
 }
@@ -26,6 +29,57 @@ function dump {
 
 function compress {
     pigz
+}
+
+function aws_delete_objects {
+    args=(
+      "--bucket=$LOGICAL_BACKUP_S3_BUCKET"
+    )
+
+    [[ ! -z "$LOGICAL_BACKUP_S3_ENDPOINT" ]] && args+=("--endpoint-url=$LOGICAL_BACKUP_S3_ENDPOINT")
+    [[ ! -z "$LOGICAL_BACKUP_S3_REGION" ]] && args+=("--region=$LOGICAL_BACKUP_S3_REGION")
+
+    aws s3api delete-objects "${args[@]}" --delete Objects=["$(printf {Key=%q}, "$@")"],Quiet=true
+}
+export -f aws_delete_objects
+
+function aws_delete_outdated {
+      if [[ -z "$LOGICAL_BACKUP_S3_RETENTION_TIME" ]] ; then
+          echo "no retention time configured: skip cleanup of outdated backups"
+          return 0
+      fi
+
+      # define cutoff date for outdated backups (day precision)
+      cutoff_date=$(date -d "$LOGICAL_BACKUP_S3_RETENTION_TIME ago" +%F)
+
+      # mimic bucket setup from Spilo
+      prefix="spilo/"$SCOPE$LOGICAL_BACKUP_S3_BUCKET_SCOPE_SUFFIX"/logical_backups/"
+
+      args=(
+        "--no-paginate"
+        "--output=text"
+        "--prefix=$prefix"
+        "--bucket=$LOGICAL_BACKUP_S3_BUCKET"
+      )
+
+      [[ ! -z "$LOGICAL_BACKUP_S3_ENDPOINT" ]] && args+=("--endpoint-url=$LOGICAL_BACKUP_S3_ENDPOINT")
+      [[ ! -z "$LOGICAL_BACKUP_S3_REGION" ]] && args+=("--region=$LOGICAL_BACKUP_S3_REGION")
+
+      # list objects older than the cutoff date
+      aws s3api list-objects "${args[@]}" --query="Contents[?LastModified<='$cutoff_date'].[Key]" > /tmp/outdated-backups
+
+      # spare the last backup
+      sed -i '$d' /tmp/outdated-backups
+
+      count=$(wc -l < /tmp/outdated-backups)
+      if [[ $count == 0 ]] ; then
+        echo "no outdated backups to delete"
+        return 0
+      fi
+      echo "deleting $count outdated backups created before $cutoff_date"
+
+      # deleted outdated files in batches with 100 at a time
+      tr '\n' '\0'  < /tmp/outdated-backups | xargs -0 -P1 -n100 bash -c 'aws_delete_objects "$@"' _
 }
 
 function aws_upload {
@@ -59,6 +113,7 @@ function upload {
             ;;
         *)
             aws_upload $(($(estimate_size) / DUMP_SIZE_COEFF))
+            aws_delete_outdated
             ;;
     esac
 }

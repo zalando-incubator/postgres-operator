@@ -133,6 +133,7 @@ configuration:
     # logical_backup_s3_region: ""
     # logical_backup_s3_secret_access_key: ""
     logical_backup_s3_sse: "AES256"
+    # logical_backup_s3_retention_time: ""
     logical_backup_schedule: "30 00 * * *"
   debug:
     debug_logging: true

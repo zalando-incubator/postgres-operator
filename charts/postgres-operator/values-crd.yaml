@@ -283,6 +283,8 @@ configLogicalBackup:
   logical_backup_s3_secret_access_key: ""
   # S3 server side encryption
   logical_backup_s3_sse: "AES256"
+  # S3 retention time for stored backups for example "2 week" or "7 days"
+  logical_backup_s3_retention_time: ""
   # backup schedule in the cron format
   logical_backup_schedule: "30 00 * * *"
 

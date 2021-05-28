@@ -1348,6 +1348,9 @@ var OperatorConfigCRDResourceValidation = apiextv1.CustomResourceValidation{
 							"logical_backup_s3_sse": {
 								Type: "string",
 							},
+							"logical_backup_s3_retention_time": {
+								Type: "string",
+							},
 							"logical_backup_schedule": {
 								Type:    "string",
 								Pattern: "^(\\d+|\\*)(/\\d+)?(\\s+(\\d+|\\*)(/\\d+)?){4}$",
