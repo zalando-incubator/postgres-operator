@@ -39,4 +39,6 @@ configuration:
 {{ toYaml .Values.configLoggingRestApi | indent 4 }}
   connection_pooler:
 {{ toYaml .Values.configConnectionPooler | indent 4 }}
+  sidecars:
+{{ toYaml .Values.configSidecars | indent 4 }}
 {{- end }}

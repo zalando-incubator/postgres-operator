@@ -329,6 +329,25 @@ configConnectionPooler:
   connection_pooler_default_cpu_limit: "1"
   connection_pooler_default_memory_limit: 100Mi
 
+# Sidecar containers to add to any database cluster Pod
+configSidecars: []
+#   - name: postgres-exporter
+#     image: bitnami/postgres-exporter:0.9.0-debian-10-r10
+#     env:
+#     - name: DATA_SOURCE_URI
+#       value: 127.0.0.1:5432?sslmode=disable
+#     - name: DATA_SOURCE_USER
+#       value: $(POSTGRES_USER)
+#     - name: DATA_SOURCE_PASS
+#       value: $(POSTGRES_PASSWORD)
+#     resources:
+#       limits:
+#         cpu: 100m
+#         memory: 250Mi
+#       requests:
+#         cpu: 100m
+#         memory: 100Mi
+
 rbac:
   # Specifies whether RBAC resources should be created
   create: true
