@@ -134,6 +134,7 @@ func (c *Controller) importConfigurationFromCRD(fromCRD *acidv1.OperatorConfigur
 	result.EnableMasterLoadBalancer = fromCRD.LoadBalancer.EnableMasterLoadBalancer
 	result.EnableReplicaLoadBalancer = fromCRD.LoadBalancer.EnableReplicaLoadBalancer
 	result.CustomServiceAnnotations = fromCRD.LoadBalancer.CustomServiceAnnotations
+	result.IgnoredServiceAnnotations = fromCRD.LoadBalancer.IgnoredServiceAnnotations
 	result.MasterDNSNameFormat = fromCRD.LoadBalancer.MasterDNSNameFormat
 	result.ReplicaDNSNameFormat = fromCRD.LoadBalancer.ReplicaDNSNameFormat
 	result.ExternalTrafficPolicy = util.Coalesce(fromCRD.LoadBalancer.ExternalTrafficPolicy, "Cluster")

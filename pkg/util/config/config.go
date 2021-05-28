@@ -184,6 +184,7 @@ type Config struct {
 	EnableMasterLoadBalancer               bool              `name:"enable_master_load_balancer" default:"true"`
 	EnableReplicaLoadBalancer              bool              `name:"enable_replica_load_balancer" default:"false"`
 	CustomServiceAnnotations               map[string]string `name:"custom_service_annotations"`
+	IgnoredServiceAnnotations              []string          `name:"ignored_service_annotations"`
 	CustomPodAnnotations                   map[string]string `name:"custom_pod_annotations"`
 	EnablePodAntiAffinity                  bool              `name:"enable_pod_antiaffinity" default:"false"`
 	PodAntiAffinityTopologyKey             string            `name:"pod_antiaffinity_topology_key" default:"kubernetes.io/hostname"`

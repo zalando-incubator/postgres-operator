@@ -1687,6 +1687,10 @@ func (c *Cluster) generateServiceAnnotations(role PostgresRole, spec *acidv1.Pos
 		}
 	}
 
+	if len(c.OpConfig.IgnoredServiceAnnotations) > 0 {
+		annotations["ignore_service_annotations"] = strings.Join(c.OpConfig.IgnoredServiceAnnotations, ",")
+	}
+
 	if c.shouldCreateLoadBalancerForService(role, spec) {
 		var dnsName string
 		if role == Master {

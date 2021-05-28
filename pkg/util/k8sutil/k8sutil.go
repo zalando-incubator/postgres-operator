@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	b64 "encoding/base64"
 	"encoding/json"
@@ -217,8 +218,13 @@ func SameService(cur, new *v1.Service) (match bool, reason string) {
 
 	match = true
 
+	ignoredServiceAnnotations := new.Annotations["ignore_service_annotations"]
 	reasonPrefix := "new service's annotations does not match the current one:"
 	for ann := range cur.Annotations {
+		if strings.Contains(ignoredServiceAnnotations, ann) {
+			continue
+		}
+
 		if _, ok := new.Annotations[ann]; !ok {
 			match = false
 			if len(reason) == 0 {

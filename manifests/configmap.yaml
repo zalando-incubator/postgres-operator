@@ -23,6 +23,7 @@ data:
   # connection_pooler_schema: "pooler"
   # connection_pooler_user: "pooler"
   # custom_service_annotations: "keyx:valuez,keya:valuea"
+  # ignored_service_annotations: "foo,bar"
   # custom_pod_annotations: "keya:valuea,keyb:valueb"
   db_hosted_zone: db.example.com
   debug_logging: "true"

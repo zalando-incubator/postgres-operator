@@ -119,6 +119,7 @@ type LoadBalancerConfiguration struct {
 	EnableMasterLoadBalancer  bool                  `json:"enable_master_load_balancer,omitempty"`
 	EnableReplicaLoadBalancer bool                  `json:"enable_replica_load_balancer,omitempty"`
 	CustomServiceAnnotations  map[string]string     `json:"custom_service_annotations,omitempty"`
+	IgnoredServiceAnnotations []string              `json:"ignored_service_annotations,omitempty"`
 	MasterDNSNameFormat       config.StringTemplate `json:"master_dns_name_format,omitempty"`
 	ReplicaDNSNameFormat      config.StringTemplate `json:"replica_dns_name_format,omitempty"`
 	ExternalTrafficPolicy     string                `json:"external_traffic_policy" default:"Cluster"`

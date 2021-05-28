@@ -344,6 +344,10 @@ spec:
                     type: object
                     additionalProperties:
                       type: string
+                  ignored_service_annotations:
+                    type: array
+                    items:
+                      type: string
                   db_hosted_zone:
                     type: string
                     default: "db.example.com"

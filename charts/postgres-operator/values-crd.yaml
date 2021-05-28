@@ -202,6 +202,11 @@ configLoadBalancer:
   #   keyx: valuez
   #   keya: valuea
 
+  # annotations to be ignored during sync to not cause restarts
+  # ignored_service_annotations:
+  #   - foo
+  #   - bar
+
   # toggles service type load balancer pointing to the master pod of the cluster
   enable_master_load_balancer: false
   # toggles service type load balancer pointing to the replica pod of the cluster

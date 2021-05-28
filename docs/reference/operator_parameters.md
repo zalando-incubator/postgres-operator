@@ -509,6 +509,11 @@ In the CRD-based configuration they are grouped under the `load_balancer` key.
 * **external_traffic_policy** defines external traffic policy for load
   balancers. Allowed values are `Cluster` (default) and `Local`.
 
+* **ignored_service_annotations**
+  Defines ignored service annotations during sync. Helpful when another
+  operator or k8s element adds annotations to services, which would cause a
+  service resync seemingly without reason.
+
 * **master_dns_name_format** defines the DNS name string template for the
   master load balancer cluster.  The default is
   `{cluster}.{team}.{hostedzone}`, where `{cluster}` is replaced by the cluster

@@ -288,6 +288,27 @@ func TestSameService(t *testing.T) {
 			// Test just the prefix to avoid flakiness and map sorting
 			reason: `new service's annotations does not match the current one: Added `,
 		},
+		{
+			about: "current service has annotations that should be ignored",
+			current: newsService(
+				map[string]string{
+					constants.ZalandoDNSNameAnnotation: "clstr.acid.zalan.do",
+					constants.ElbTimeoutAnnotationName: constants.ElbTimeoutAnnotationValue,
+					"ignore_service_annotations":       "foo,ignore,bar",
+					"ignore":                           "me",
+				},
+				v1.ServiceTypeClusterIP,
+				[]string{"128.141.0.0/16", "137.138.0.0/16"}),
+			new: newsService(
+				map[string]string{
+					constants.ZalandoDNSNameAnnotation: "clstr.acid.zalan.do",
+					constants.ElbTimeoutAnnotationName: constants.ElbTimeoutAnnotationValue,
+					"ignore_service_annotations":       "foo,ignore,bar",
+				},
+				v1.ServiceTypeClusterIP,
+				[]string{"128.141.0.0/16", "137.138.0.0/16"}),
+			match: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.about, func(t *testing.T) {

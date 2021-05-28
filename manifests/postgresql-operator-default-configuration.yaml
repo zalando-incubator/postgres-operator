@@ -105,6 +105,9 @@ configuration:
     # custom_service_annotations:
     #   keyx: valuex
     #   keyy: valuey
+    # ignored_service_annotations:
+    #   - foo
+    #   - bar
     # db_hosted_zone: ""
     enable_master_load_balancer: false
     enable_replica_load_balancer: false
