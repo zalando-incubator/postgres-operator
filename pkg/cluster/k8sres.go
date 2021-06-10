@@ -1923,10 +1923,6 @@ func (c *Cluster) generateStandbyEnvironment(description *acidv1.StandbyDescript
 				Name:  "STANDBY_WAL_BUCKET_SCOPE_SUFFIX",
 				Value: getBucketScopeSuffix(description.UID),
 			},
-			{
-				Name:  "STANDBY_PGVERSION",
-				Value: description.PgVersion,
-			},
 		}
 
 		result = append(result, envs...)

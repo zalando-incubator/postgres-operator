@@ -776,8 +776,8 @@ version between source and target cluster has to be the same.
 To start a cluster as standby, add the following `standby` section in the YAML
 file. Specify either the S3/GS bucket path or a cluster name to use the default layout.
 Omitting both settings will result in an error and no statefulset will be created.
-Note that when specifying cluster name you may also optionally provide a UID and
-Postgres major version if those are used in your bucket.
+Note that when specifying cluster name you may also optionally provide a UID
+if one is used in your bucket path.
 
 ```yaml
 spec:
@@ -790,7 +790,6 @@ spec:
   standby:
     cluster: "acid-batman"
     uid: "efd12e58-5786-11e8-b5a7-06148230260c"
-    version: "12"
 ```
 
 At the moment, the operator only allows to stream from the WAL archive of the

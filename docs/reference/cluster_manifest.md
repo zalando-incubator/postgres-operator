@@ -345,11 +345,6 @@ archives is supported.
   to guarantee uniqueness. Can be omitted for buckets which do not include the
   UID in their path. Optional.
 
-* **version**
-  The Postgres major version of the cluster to replicate. This is needed with
-  wal-e/wal-g backups created by Spilo 13 as they append the Postgres version to
-  the bucket path. Optional.
-
 * **s3_wal_path**
   the url to S3 bucket containing the WAL archive of the remote primary.
   Optional, but `cluster`, `s3_wal_path`  or `gs_wal_path` is required. 
