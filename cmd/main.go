@@ -34,6 +34,7 @@ func init() {
 	flag.BoolVar(&outOfCluster, "outofcluster", false, "Whether the operator runs in- our outside of the Kubernetes cluster.")
 	flag.BoolVar(&config.NoDatabaseAccess, "nodatabaseaccess", false, "Disable all access to the database from the operator side.")
 	flag.BoolVar(&config.NoTeamsAPI, "noteamsapi", false, "Disable all access to the teams API")
+	flag.StringVar(&config.MetricsContext, "metricscontext", "/metrics", "Metrics context of prometheus endpoint.")
 	flag.Parse()
 
 	config.EnableJsonLogging = os.Getenv("ENABLE_JSON_LOGGING") == "true"

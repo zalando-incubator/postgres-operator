@@ -7,6 +7,7 @@ require (
 	github.com/golang/mock v1.4.4
 	github.com/lib/pq v1.9.0
 	github.com/motomux/pretty v0.0.0-20161209205251-b2aad2c9a95d
+	github.com/prometheus/client_golang v1.11.0
 	github.com/r3labs/diff v1.1.0
 	github.com/sirupsen/logrus v1.7.0
 	github.com/stretchr/testify v1.6.1

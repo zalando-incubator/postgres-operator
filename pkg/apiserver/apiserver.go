@@ -17,6 +17,8 @@ import (
 	"github.com/zalando/postgres-operator/pkg/spec"
 	"github.com/zalando/postgres-operator/pkg/util"
 	"github.com/zalando/postgres-operator/pkg/util/config"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -92,13 +94,13 @@ func New(controller controllerInformer, port int, logger *logrus.Logger) *Server
 	mux.HandleFunc("/clusters/", s.clusters)
 	mux.HandleFunc("/workers/", s.workers)
 	mux.HandleFunc("/databases/", s.databases)
+	mux.Handle(controller.GetConfig().MetricsContext, promhttp.Handler())
 
 	s.http = http.Server{
 		Addr:        fmt.Sprintf(":%d", port),
 		Handler:     http.TimeoutHandler(mux, httpAPITimeout, ""),
 		ReadTimeout: httpReadTimeout,
 	}
-
 	return s
 }
 

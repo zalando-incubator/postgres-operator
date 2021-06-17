@@ -118,6 +118,8 @@ type ControllerConfig struct {
 	ConfigMapName        NamespacedName
 	Namespace            string
 
+	MetricsContext       string
+
 	EnableJsonLogging bool
 }
 
