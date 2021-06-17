@@ -53,6 +53,10 @@ type PostgresSpec struct {
 	// load balancers' source ranges are the same for master and replica services
 	AllowedSourceRanges []string `json:"allowedSourceRanges"`
 
+	// static IP addresses for load balancers
+	MasterLoadBalancerIP  string `json:"masterLoadBalancerIP,omitempty"`
+	ReplicaLoadBalancerIP string `json:"replicaLoadBalancerIP,omitempty"`
+
 	NumberOfInstances      int32                       `json:"numberOfInstances"`
 	EnableNamespacedSecret *bool                       `json:"enableNamespacedSecret,omitempty"`
 	Users                  map[string]UserFlags        `json:"users,omitempty"`
