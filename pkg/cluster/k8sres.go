@@ -1674,6 +1674,14 @@ func (c *Cluster) generateService(role PostgresRole, spec *acidv1.PostgresSpec) 
 			serviceSpec.LoadBalancerSourceRanges = []string{localHost}
 		}
 
+		if role == Master && spec.MasterLoadBalancerIP != "" {
+			serviceSpec.LoadBalancerIP = spec.MasterLoadBalancerIP
+		}
+
+		if role == Replica && spec.ReplicaLoadBalancerIP != "" {
+			serviceSpec.LoadBalancerIP = spec.ReplicaLoadBalancerIP
+		}
+
 		c.logger.Debugf("final load balancer source ranges as seen in a service spec (not necessarily applied): %q", serviceSpec.LoadBalancerSourceRanges)
 		serviceSpec.ExternalTrafficPolicy = v1.ServiceExternalTrafficPolicyType(c.OpConfig.ExternalTrafficPolicy)
 		serviceSpec.Type = v1.ServiceTypeLoadBalancer
