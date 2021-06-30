@@ -10,6 +10,8 @@ spec:
   numberOfInstances: 1
   postgresql:
     version: "13"
-# Make this a standby cluster and provide the s3 bucket path of source cluster for continuous streaming.
+# Make this a standby cluster and provide either the s3 bucket path of source cluster or the remote primary host for continuous streaming.
   standby:
     s3_wal_path: "s3://path/to/bucket/containing/wal/of/source/cluster/"
+    # standby_host: ""
+    # standby_port: ""

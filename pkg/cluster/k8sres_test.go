@@ -531,6 +531,72 @@ func TestCloneEnv(t *testing.T) {
 	}
 }
 
+func TestStandbyEnv(t *testing.T) {
+	testName := "TestStandbyEnv"
+	tests := []struct {
+		subTest     string
+		standbyOpts *acidv1.StandbyDescription
+		env         v1.EnvVar
+		envPos      int
+	}{
+		{
+			subTest: "from custom s3 path",
+			standbyOpts: &acidv1.StandbyDescription{
+				S3WalPath: "s3://some/path/",
+			},
+			env: v1.EnvVar{
+				Name:  "STANDBY_WALE_S3_PREFIX",
+				Value: "s3://some/path/",
+			},
+			envPos: 0,
+		},
+		{
+			subTest: "from remote primary",
+			standbyOpts: &acidv1.StandbyDescription{
+				S3WalPath:   "s3://some/path/",
+				StandbyHost: "remote-primary",
+			},
+			env: v1.EnvVar{
+				Name:  "STANDBY_HOST",
+				Value: "remote-primary",
+			},
+			envPos: 0,
+		},
+		{
+			subTest: "from remote primary with port",
+			standbyOpts: &acidv1.StandbyDescription{
+				S3WalPath:   "s3://some/path/",
+				StandbyHost: "remote-primary",
+				StandbyPort: "9876",
+			},
+			env: v1.EnvVar{
+				Name:  "STANDBY_PORT",
+				Value: "9876",
+			},
+			envPos: 2,
+		},
+	}
+
+	var cluster = New(
+		Config{}, k8sutil.KubernetesClient{}, acidv1.Postgresql{}, logger, eventRecorder)
+
+	for _, tt := range tests {
+		envs := cluster.generateStandbyEnvironment(tt.standbyOpts)
+
+		env := envs[tt.envPos]
+
+		if env.Name != tt.env.Name {
+			t.Errorf("%s %s: Expected env name %s, have %s instead",
+				testName, tt.subTest, tt.env.Name, env.Name)
+		}
+
+		if env.Value != tt.env.Value {
+			t.Errorf("%s %s: Expected env value %s, have %s instead",
+				testName, tt.subTest, tt.env.Value, env.Value)
+		}
+	}
+}
+
 func TestExtractPgVersionFromBinPath(t *testing.T) {
 	testName := "TestExtractPgVersionFromBinPath"
 	tests := []struct {
