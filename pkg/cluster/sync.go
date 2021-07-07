@@ -386,7 +386,6 @@ func (c *Cluster) syncStatefulSet() error {
 		return fmt.Errorf("could not set cluster-wide PostgreSQL configuration options: %v", err)
 	}
 
-
 	if instancesRestartRequired {
 		c.logger.Debugln("restarting Postgres server within pods")
 		c.eventRecorder.Event(c.GetReference(), v1.EventTypeNormal, "Update", "restarting Postgres server within pods")
@@ -769,7 +768,7 @@ func (c *Cluster) syncPreparedDatabases() error {
 		}
 
 		// install extensions
-		if err := c.syncExtensions(preparedDB.Extensions); err != nil {
+		if err := c.syncExtensions(preparedDbName, preparedDB.Extensions); err != nil {
 			return err
 		}
 
@@ -813,7 +812,7 @@ func (c *Cluster) syncPreparedSchemas(databaseName string, preparedSchemas map[s
 	return nil
 }
 
-func (c *Cluster) syncExtensions(extensions map[string]string) error {
+func (c *Cluster) syncExtensions(databaseName string, extensions map[string]string) error {
 	c.setProcessName("syncing database extensions")
 
 	createExtensions := make(map[string]string)
@@ -836,6 +835,14 @@ func (c *Cluster) syncExtensions(extensions map[string]string) error {
 	for extName, schema := range createExtensions {
 		if err = c.executeCreateExtension(extName, schema); err != nil {
 			return err
+		}
+		// grant privileges on objects created by the extension to default database roles
+		if err = c.execExtensionPostCreatePrivileges(schema, databaseName); err != nil {
+			return err
+		}
+		// try to grant to default schema roles, too, but defaultRoles could be false for schema
+		if err = c.execExtensionPostCreatePrivileges(schema, databaseName+"_"+schema); err != nil {
+			c.logger.Debugf("no privileges assigned to schema roles: %v", err)
 		}
 	}
 	for extName, schema := range alterExtensions {

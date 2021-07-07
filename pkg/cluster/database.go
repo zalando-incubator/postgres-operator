@@ -56,6 +56,13 @@ const (
 			ALTER DEFAULT PRIVILEGES IN SCHEMA "%s" GRANT EXECUTE ON FUNCTIONS TO "%s","%s";
 			ALTER DEFAULT PRIVILEGES IN SCHEMA "%s" GRANT USAGE ON TYPES TO "%s","%s";`
 
+	extensionPostCreateSQL = `
+			GRANT SELECT ON ALL TABLES IN SCHEMA "%s" TO "%s","%s";
+			GRANT SELECT ON ALL SEQUENCES IN SCHEMA "%s" TO "%s","%s";
+			GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "%s" TO "%s","%s";
+			GRANT USAGE, UPDATE ON ALL SEQUENCES IN SCHEMA "%s" TO "%s","%s";
+			GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA "%s" TO "%s","%s","%s";`
+
 	connectionPoolerLookup = `
 		CREATE SCHEMA IF NOT EXISTS {{.pooler_schema}};
 
@@ -413,6 +420,19 @@ func (c *Cluster) execAlterGlobalDefaultPrivileges(owner, rolePrefix string) err
 		rolePrefix+constants.ReaderRoleNameSuffix, rolePrefix+constants.WriterRoleNameSuffix, // types
 		rolePrefix+constants.ReaderRoleNameSuffix, rolePrefix+constants.WriterRoleNameSuffix)); err != nil { // functions
 		return fmt.Errorf("could not alter default privileges for database %s: %v", rolePrefix, err)
+	}
+
+	return nil
+}
+
+func (c *Cluster) execExtensionPostCreatePrivileges(schemaName, rolePrefix string) error {
+	if _, err := c.pgDb.Exec(fmt.Sprintf(extensionPostCreateSQL,
+		schemaName, rolePrefix+constants.OwnerRoleNameSuffix, rolePrefix+constants.ReaderRoleNameSuffix, // tables
+		schemaName, rolePrefix+constants.OwnerRoleNameSuffix, rolePrefix+constants.ReaderRoleNameSuffix, // sequences
+		schemaName, rolePrefix+constants.OwnerRoleNameSuffix, rolePrefix+constants.WriterRoleNameSuffix, // tables
+		schemaName, rolePrefix+constants.OwnerRoleNameSuffix, rolePrefix+constants.WriterRoleNameSuffix, // sequences
+		schemaName, rolePrefix+constants.OwnerRoleNameSuffix, rolePrefix+constants.ReaderRoleNameSuffix, rolePrefix+constants.WriterRoleNameSuffix)); err != nil { // functions
+		return fmt.Errorf("could not set privileges in schema %s: %v", schemaName, err)
 	}
 
 	return nil
