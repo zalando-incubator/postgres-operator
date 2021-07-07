@@ -4,12 +4,14 @@
 set -o errexit
 set -o nounset
 set -o pipefail
+set -o errtrace
 IFS=$'\n\t'
 
 ALL_DB_SIZE_QUERY="select sum(pg_database_size(datname)::numeric) from pg_database;"
 PG_BIN=$PG_DIR/$PG_VERSION/bin
 DUMP_SIZE_COEFF=5
-ERRORCOUNT=0
+# set errorcount to 1 in case we don't find any pod to connect to
+ERRORCOUNT=1
 
 TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
 K8S_API_URL=https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT/api/v1
@@ -30,11 +32,12 @@ function compress {
 
 function aws_upload {
     declare -r EXPECTED_SIZE="$1"
+    declare -r FILENAME="$2"
 
     # mimic bucket setup from Spilo
     # to keep logical backups at the same path as WAL
     # NB: $LOGICAL_BACKUP_S3_BUCKET_SCOPE_SUFFIX already contains the leading "/" when set by the Postgres Operator
-    PATH_TO_BACKUP=s3://$LOGICAL_BACKUP_S3_BUCKET"/spilo/"$SCOPE$LOGICAL_BACKUP_S3_BUCKET_SCOPE_SUFFIX"/logical_backups/"$(date +%s).sql.gz
+    PATH_TO_BACKUP=s3://$LOGICAL_BACKUP_S3_BUCKET"/spilo/"$SCOPE$LOGICAL_BACKUP_S3_BUCKET_SCOPE_SUFFIX"/logical_backups/"$FILENAME
 
     args=()
 
@@ -46,19 +49,54 @@ function aws_upload {
     aws s3 cp - "$PATH_TO_BACKUP" "${args[@]//\'/}"
 }
 
+function aws_remove {
+    declare -r FILENAME="$1"
+
+    PATH_TO_BACKUP=s3://$LOGICAL_BACKUP_S3_BUCKET"/spilo/"$SCOPE$LOGICAL_BACKUP_S3_BUCKET_SCOPE_SUFFIX"/logical_backups/"$FILENAME
+
+    args=()
+
+    [[ ! -z "$LOGICAL_BACKUP_S3_ENDPOINT" ]] && args+=("--endpoint-url=$LOGICAL_BACKUP_S3_ENDPOINT")
+    [[ ! -z "$LOGICAL_BACKUP_S3_REGION" ]] && args+=("--region=$LOGICAL_BACKUP_S3_REGION")
+    [[ ! -z "$LOGICAL_BACKUP_S3_SSE" ]] && args+=("--sse=$LOGICAL_BACKUP_S3_SSE")
+
+    aws s3 rm "$PATH_TO_BACKUP" "${args[@]//\'/}"
+}
+
 function gcs_upload {
-    PATH_TO_BACKUP=gs://$LOGICAL_BACKUP_S3_BUCKET"/spilo/"$SCOPE$LOGICAL_BACKUP_S3_BUCKET_SCOPE_SUFFIX"/logical_backups/"$(date +%s).sql.gz
+    declare -r FILENAME="$1"
+    PATH_TO_BACKUP=gs://$LOGICAL_BACKUP_S3_BUCKET"/spilo/"$SCOPE$LOGICAL_BACKUP_S3_BUCKET_SCOPE_SUFFIX"/logical_backups/"$FILENAME
 
     gsutil -o Credentials:gs_service_key_file=$LOGICAL_BACKUP_GOOGLE_APPLICATION_CREDENTIALS cp - "$PATH_TO_BACKUP"
 }
 
+function gcs_remove {
+    declare -r FILENAME="$1"
+    PATH_TO_BACKUP=gs://$LOGICAL_BACKUP_S3_BUCKET"/spilo/"$SCOPE$LOGICAL_BACKUP_S3_BUCKET_SCOPE_SUFFIX"/logical_backups/"$FILENAME
+
+    gsutil -o Credentials:gs_service_key_file=$LOGICAL_BACKUP_GOOGLE_APPLICATION_CREDENTIALS rm "$PATH_TO_BACKUP"
+}
+
 function upload {
+    declare -r FILENAME="$1"
     case $LOGICAL_BACKUP_PROVIDER in
         "gcs")
-            gcs_upload
+            gcs_upload $FILENAME
             ;;
         *)
-            aws_upload $(($(estimate_size) / DUMP_SIZE_COEFF))
+            aws_upload $(($(estimate_size) / DUMP_SIZE_COEFF)) $FILENAME
+            ;;
+    esac
+}
+
+function remove {
+    declare -r FILENAME="$1"
+    case $LOGICAL_BACKUP_PROVIDER in
+        "gcs")
+            gcs_remove $FILENAME
+            ;;
+        *)
+            aws_remove $FILENAME
             ;;
     esac
 }
@@ -103,15 +141,28 @@ for search in "${search_strategy[@]}"; do
     PGHOST=$(eval "$search")
     export PGHOST
 
-    if [ -n "$PGHOST" ]; then
+    if [ -z "$PGHOST" ]; then
+        continue
+    fi
+
+    ERRORCOUNT=0
+    FILENAME=$(date +%s).sql.gz
+    trap "remove $FILENAME ; exit 1" SIGTERM
+    trap "remove $FILENAME" ERR
+    set +o errexit
+    set -x
+    dump | compress | upload $FILENAME
+    [[ ${PIPESTATUS[0]} != 0 || ${PIPESTATUS[1]} != 0 || ${PIPESTATUS[2]} != 0 ]] && (( ERRORCOUNT += 1 ))
+    set +x
+    set -o errexit
+    trap - SIGTERM
+    trap - ERR
+    if [[ $ERRORCOUNT -gt 0 ]]; then
+        remove $FILENAME
+    else
         break
     fi
 
 done
-
-set -x
-dump | compress | upload
-[[ ${PIPESTATUS[0]} != 0 || ${PIPESTATUS[1]} != 0 || ${PIPESTATUS[2]} != 0 ]] && (( ERRORCOUNT += 1 ))
-set +x
 
 exit $ERRORCOUNT
