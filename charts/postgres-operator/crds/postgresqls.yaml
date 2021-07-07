@@ -374,10 +374,15 @@ spec:
                 type: integer
               standby:
                 type: object
-                required:
-                  - s3_wal_path
                 properties:
+                  cluster:
+                    type: string
+                  uid:
+                    format: uuid
+                    type: string
                   s3_wal_path:
+                    type: string
+                  gs_wal_path:
                     type: string
               teamId:
                 type: string
