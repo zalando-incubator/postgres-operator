@@ -35,11 +35,11 @@ spec:
           allowPrivilegeEscalation: false
         env:
         # provided additional ENV vars can overwrite individual config map entries
-        - name: CONFIG_MAP_NAME
-          value: "postgres-operator"
-        # In order to use the CRD OperatorConfiguration instead, uncomment these lines and comment out the two lines above
-        # - name: POSTGRES_OPERATOR_CONFIGURATION_OBJECT
-        #  value: postgresql-operator-default-configuration
+        - name: POSTGRES_OPERATOR_CONFIGURATION_OBJECT
+          value: postgresql-operator-default-configuration
+        # In order to use the ConfigMap instead, uncomment these lines and comment out the two lines above
+        # - name: CONFIG_MAP_NAME
+        #   value: "postgres-operator"
         # Define an ID to isolate controllers from each other
         # - name: CONTROLLER_ID
         #   value: "second-operator"

@@ -76,7 +76,7 @@ configuration:
     # pod_priority_class_name: "postgres-pod-priority"
     pod_role_label: spilo-role
     # pod_service_account_definition: ""
-    pod_service_account_name: postgres-pod
+    pod_service_account_name: zalando-postgres-operator
     # pod_service_account_role_binding_definition: ""
     pod_terminate_grace_period: 5m
     secret_name_template: "{username}.{cluster}.credentials.{tprkind}.{tprgroup}"
