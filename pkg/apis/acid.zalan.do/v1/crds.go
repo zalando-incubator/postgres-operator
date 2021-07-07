@@ -570,6 +570,12 @@ var PostgresCRDResourceValidation = apiextv1.CustomResourceValidation{
 							"s3_wal_path": {
 								Type: "string",
 							},
+							"standby_host": {
+								Type: "string",
+							},
+							"standby_port": {
+								Type: "string",
+							},
 						},
 					},
 					"teamId": {

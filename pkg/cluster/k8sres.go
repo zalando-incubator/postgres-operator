@@ -1053,8 +1053,10 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*appsv1.Statef
 	sort.Slice(customPodEnvVarsList,
 		func(i, j int) bool { return customPodEnvVarsList[i].Name < customPodEnvVarsList[j].Name })
 
-	if spec.StandbyCluster != nil && spec.StandbyCluster.S3WalPath == "" {
-		return nil, fmt.Errorf("s3_wal_path is empty for standby cluster")
+	if spec.StandbyCluster != nil {
+		if spec.StandbyCluster.S3WalPath == "" && spec.StandbyCluster.StandbyHost == "" {
+			return nil, fmt.Errorf("s3_wal_path and standby_host are empty for standby cluster")
+		}
 	}
 
 	// backward compatible check for InitContainers
@@ -1862,21 +1864,31 @@ func (c *Cluster) generateCloneEnvironment(description *acidv1.CloneDescription)
 func (c *Cluster) generateStandbyEnvironment(description *acidv1.StandbyDescription) []v1.EnvVar {
 	result := make([]v1.EnvVar, 0)
 
-	if description.S3WalPath == "" {
-		return nil
+	if description.StandbyHost != "" {
+		// standby from remote primary
+		result = append(result, v1.EnvVar{
+			Name:  "STANDBY_HOST",
+			Value: description.StandbyHost,
+		})
+		if description.StandbyPort != "" {
+			result = append(result, v1.EnvVar{
+				Name:  "STANDBY_PORT",
+				Value: description.StandbyPort,
+			})
+		}
+	} else if description.S3WalPath != "" {
+		// standby with S3, find out the bucket to setup standby
+		msg := "Standby from S3 bucket using custom parsed S3WalPath from the manifest %s "
+		c.logger.Infof(msg, description.S3WalPath)
+
+		result = append(result, v1.EnvVar{
+			Name:  "STANDBY_WALE_S3_PREFIX",
+			Value: description.S3WalPath,
+		})
+
+		result = append(result, v1.EnvVar{Name: "STANDBY_METHOD", Value: "STANDBY_WITH_WALE"})
+		result = append(result, v1.EnvVar{Name: "STANDBY_WAL_BUCKET_SCOPE_PREFIX", Value: ""})
 	}
-	// standby with S3, find out the bucket to setup standby
-	msg := "Standby from S3 bucket using custom parsed S3WalPath from the manifest %s "
-	c.logger.Infof(msg, description.S3WalPath)
-
-	result = append(result, v1.EnvVar{
-		Name:  "STANDBY_WALE_S3_PREFIX",
-		Value: description.S3WalPath,
-	})
-
-	result = append(result, v1.EnvVar{Name: "STANDBY_METHOD", Value: "STANDBY_WITH_WALE"})
-	result = append(result, v1.EnvVar{Name: "STANDBY_WAL_BUCKET_SCOPE_PREFIX", Value: ""})
-
 	return result
 }
 

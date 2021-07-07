@@ -375,6 +375,10 @@ spec:
                 properties:
                   s3_wal_path:
                     type: string
+                  standby_host:
+                    type: string
+                  standby_port:
+                    type: string
               teamId:
                 type: string
               tls:
