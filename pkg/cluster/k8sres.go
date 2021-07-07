@@ -1926,9 +1926,8 @@ func (c *Cluster) generateLogicalBackupJob() (*batchv1beta1.CronJob, error) {
 
 	c.logger.Debug("Generating logical backup pod template")
 
-	// allocate for the backup pod the same amount of resources as for normal DB pods
-	defaultResources := c.makeDefaultResources()
-	resourceRequirements, err = generateResourceRequirements(c.Spec.Resources, defaultResources)
+	// allocate only default resources for the backup pod
+	resourceRequirements, err = generateResourceRequirements(acidv1.Resources{}, c.makeDefaultResources())
 	if err != nil {
 		return nil, fmt.Errorf("could not generate resource requirements for logical backup pods: %v", err)
 	}

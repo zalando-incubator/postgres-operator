@@ -618,6 +618,12 @@ maintaining and troubleshooting, and (c) additional teams, superuser teams or
 members associated with the owning team. The latter is managed via the
 [PostgresTeam CRD](user.md#additional-teams-and-members-per-cluster).
 
+6. Resources of the backup pod are only determined by the configured
+[default values](reference/operator_parameters.md#kubernetes-resource-requests)
+not by the values specified in the Postgres cluster manifest. This allows for
+choosing lower values for CPU and memory requests/limits than for the database
+pods.
+
 ## Access to cloud resources from clusters in non-cloud environment
 
 To access cloud resources like S3 from a cluster on bare metal you can use
