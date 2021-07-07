@@ -1,0 +1,131 @@
+# Here we use https://github.com/prometheus-community/helm-charts/charts/kube-prometheus-stack
+# Please keep the ServiceMonitor's label same as the Helm release name of kube-prometheus-stack 
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-pg
+---
+apiVersion: "acid.zalan.do/v1"
+kind: postgresql
+metadata:
+  name: acid-minimal-cluster
+  namespace: test-pg
+  labels:
+    app: test-pg
+spec:
+  teamId: "acid"
+  volume:
+    size: 1Gi
+  numberOfInstances: 2
+  users:
+    zalando:  # database owner
+    - superuser
+    - createdb
+    foo_user: []  # role for application foo
+  databases:
+    foo: zalando  # dbname: owner
+  preparedDatabases:
+    bar: {}
+  postgresql:
+    version: "13"
+  sidecars:
+    - name: "exporter"
+      image: "wrouesnel/postgres_exporter"
+      ports:
+        - name: exporter
+          containerPort: 9187
+          protocol: TCP
+      resources:
+        limits:
+          cpu: 500m
+          memory: 256M
+        requests:
+          cpu: 100m
+          memory: 200M
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acid-minimal-cluster-svc-metrics-master
+  namespace: test-pg
+  labels:
+    app: test-pg
+    spilo-role: master
+  annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9187"
+spec:
+  type: ClusterIP
+  ports:
+    - name: exporter
+      port: 9187
+      targetPort: exporter
+  selector:
+    application: spilo
+    cluster-name: acid-minimal-cluster
+    spilo-role: master
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acid-minimal-cluster-svc-metrics-replica
+  namespace: test-pg
+  labels:
+    app: test-pg
+    spilo-role: replica
+  annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9187"
+spec:
+  type: ClusterIP
+  ports:
+    - name: exporter
+      port: 9187
+      targetPort: exporter
+  selector:
+    application: spilo
+    cluster-name: acid-minimal-cluster
+    spilo-role: replica
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: acid-minimal-cluster-svcm-master
+  namespace: test-pg
+  labels:
+    app: test-pg
+    spilo-role: master
+spec:
+  endpoints:
+    - port: exporter
+      interval: 15s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    matchNames:
+      - test-pg
+  selector:
+    matchLabels:
+      app: test-pg
+      spilo-role: master
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: acid-minimal-cluster-svcm-replica
+  namespace: test-pg
+  labels:
+    app: test-pg
+    spilo-role: replica
+spec:
+  endpoints:
+    - port: exporter
+      interval: 15s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    matchNames:
+      - test-pg
+  selector:
+    matchLabels:
+      app: test-pg
+      spilo-role: replica
