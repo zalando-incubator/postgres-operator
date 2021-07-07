@@ -12,7 +12,16 @@ DUMP_SIZE_COEFF=5
 ERRORCOUNT=0
 
 TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-K8S_API_URL=https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT/api/v1
+if [ "$KUBERNETES_SERVICE_HOST" != "${KUBERNETES_SERVICE_HOST#*[0-9].[0-9]}" ]; then
+  echo "IPv4"
+  K8S_API_URL=https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT/api/v1
+elif [ "$KUBERNETES_SERVICE_HOST" != "${KUBERNETES_SERVICE_HOST#*:[0-9a-fA-F]}" ]; then
+  echo "IPv6"
+  K8S_API_URL=https://[$KUBERNETES_SERVICE_HOST]:$KUBERNETES_SERVICE_PORT/api/v1
+else
+  echo "Unrecognized IP format '$KUBERNETES_SERVICE_HOST'"
+fi
+echo "API Endpoint: ${K8S_API_URL}"
 CERT=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 
 function estimate_size {
