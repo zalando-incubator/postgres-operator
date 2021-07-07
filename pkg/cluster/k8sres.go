@@ -730,17 +730,6 @@ func (c *Cluster) generateSpiloPodEnvVars(uid types.UID, spiloConfiguration stri
 			Value: c.OpConfig.ReplicationUsername,
 		},
 		{
-			Name: "PGPASSWORD_STANDBY",
-			ValueFrom: &v1.EnvVarSource{
-				SecretKeyRef: &v1.SecretKeySelector{
-					LocalObjectReference: v1.LocalObjectReference{
-						Name: c.credentialSecretName(c.OpConfig.ReplicationUsername),
-					},
-					Key: "password",
-				},
-			},
-		},
-		{
 			Name:  "PAM_OAUTH2",
 			Value: c.OpConfig.PamConfiguration,
 		},
@@ -749,6 +738,24 @@ func (c *Cluster) generateSpiloPodEnvVars(uid types.UID, spiloConfiguration stri
 			Value: c.OpConfig.PamRoleName,
 		},
 	}
+
+	var standbySecretName string
+	if standbyDescription != nil && standbyDescription.StandbyMethod == "streaming_host" {
+		standbySecretName = standbyDescription.StandbySecretName
+	} else {
+		standbySecretName = c.credentialSecretName(c.OpConfig.ReplicationUsername)
+	}
+
+	envVars = append(envVars, v1.EnvVar{Name: "PGPASSWORD_STANDBY",
+		ValueFrom: &v1.EnvVarSource{
+			SecretKeyRef: &v1.SecretKeySelector{
+				LocalObjectReference: v1.LocalObjectReference{
+					Name: standbySecretName,
+				},
+				Key: "password",
+			},
+		}})
+
 	if c.OpConfig.EnablePgVersionEnvVar {
 		envVars = append(envVars, v1.EnvVar{Name: "PGVERSION", Value: c.GetDesiredMajorVersion()})
 	}
@@ -1040,6 +1047,9 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*appsv1.Statef
 	if err != nil {
 		return nil, err
 	}
+	if spec.StandbyCluster != nil && spec.StandbyCluster.StandbyMethod == "" {
+		return nil, fmt.Errorf("standby_method is empty for standby cluster")
+	}
 
 	// fetch env vars from custom ConfigMap
 	secretEnvVarsList, err := c.getPodEnvironmentSecretVariables()
@@ -1052,10 +1062,6 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*appsv1.Statef
 	customPodEnvVarsList = append(customPodEnvVarsList, secretEnvVarsList...)
 	sort.Slice(customPodEnvVarsList,
 		func(i, j int) bool { return customPodEnvVarsList[i].Name < customPodEnvVarsList[j].Name })
-
-	if spec.StandbyCluster != nil && spec.StandbyCluster.S3WalPath == "" {
-		return nil, fmt.Errorf("s3_wal_path is empty for standby cluster")
-	}
 
 	// backward compatible check for InitContainers
 	if spec.InitContainersOld != nil {
@@ -1862,20 +1868,32 @@ func (c *Cluster) generateCloneEnvironment(description *acidv1.CloneDescription)
 func (c *Cluster) generateStandbyEnvironment(description *acidv1.StandbyDescription) []v1.EnvVar {
 	result := make([]v1.EnvVar, 0)
 
-	if description.S3WalPath == "" {
+	if description.StandbyMethod == "" {
 		return nil
 	}
-	// standby with S3, find out the bucket to setup standby
-	msg := "Standby from S3 bucket using custom parsed S3WalPath from the manifest %s "
-	c.logger.Infof(msg, description.S3WalPath)
 
-	result = append(result, v1.EnvVar{
-		Name:  "STANDBY_WALE_S3_PREFIX",
-		Value: description.S3WalPath,
-	})
+	if description.StandbyMethod == "s3_wal" {
+		// standby with S3, find out the bucket to setup standby
+		msg := "Standby from S3 bucket using custom parsed S3WalPath from the manifest %s "
+		c.logger.Infof(msg, description.S3WalPath)
 
-	result = append(result, v1.EnvVar{Name: "STANDBY_METHOD", Value: "STANDBY_WITH_WALE"})
-	result = append(result, v1.EnvVar{Name: "STANDBY_WAL_BUCKET_SCOPE_PREFIX", Value: ""})
+		result = append(result, v1.EnvVar{
+			Name:  "STANDBY_WALE_S3_PREFIX",
+			Value: description.S3WalPath,
+		})
+
+		result = append(result, v1.EnvVar{Name: "STANDBY_METHOD", Value: "STANDBY_WITH_WALE"})
+		result = append(result, v1.EnvVar{Name: "STANDBY_WAL_BUCKET_SCOPE_PREFIX", Value: ""})
+	} else if description.StandbyMethod == "streaming_host" {
+		// standby with streaming replication from standby host
+		msg := "Standby using streaming replication from standby host: %s "
+		c.logger.Infof(msg, description.StandbyHost)
+
+		result = append(result, v1.EnvVar{Name: "STANDBY_HOST", Value: description.StandbyHost})
+		result = append(result, v1.EnvVar{Name: "STANDBY_PORT", Value: description.StandbyPort})
+		result = append(result, v1.EnvVar{Name: "STANDBY_CLUSTER", Value: "True"})
+
+	}
 
 	return result
 }

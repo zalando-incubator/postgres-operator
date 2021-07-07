@@ -371,9 +371,17 @@ spec:
               standby:
                 type: object
                 required:
-                  - s3_wal_path
+                  - standby_method
                 properties:
                   s3_wal_path:
+                    type: string
+                  standby_host:
+                    type: string
+                  standby_method:
+                    type: string
+                  standby_port:
+                    type: string
+                  standby_secret_name:
                     type: string
               teamId:
                 type: string

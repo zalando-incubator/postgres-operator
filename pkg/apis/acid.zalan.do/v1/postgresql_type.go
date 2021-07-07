@@ -163,7 +163,11 @@ type Patroni struct {
 
 // StandbyDescription contains s3 wal path
 type StandbyDescription struct {
-	S3WalPath string `json:"s3_wal_path,omitempty"`
+	S3WalPath         string `json:"s3_wal_path,omitempty"`
+	StandbyHost       string `json:"standby_host,omitempty"`
+	StandbyMethod     string `json:"standby_method,omitempty"`
+	StandbyPort       string `json:"standby_port,omitempty"`
+	StandbySecretName string `json:"standby_secret_name,omitempty"`
 }
 
 // TLSDescription specs TLS properties

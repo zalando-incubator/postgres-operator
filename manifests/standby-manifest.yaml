@@ -12,4 +12,8 @@ spec:
     version: "13"
 # Make this a standby cluster and provide the s3 bucket path of source cluster for continuous streaming.
   standby:
-    s3_wal_path: "s3://path/to/bucket/containing/wal/of/source/cluster/"
+    s3_wal_path: "s3://path/to/bucket/containing/wal/of/source/cluster/" # Make this a standby cluster and provide the s3 bucket path of source cluster for continuous streaming. 
+    standby_method: "s3_wal" # s3_wal or streaming_host; 
+    # standby_host: ""
+    # standby_port: ""
+    # standby_secret_name: ""

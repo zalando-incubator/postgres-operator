@@ -331,12 +331,29 @@ under the `clone` top-level key and do not affect the already running cluster.
 ## Standby cluster
 
 On startup, an existing `standby` top-level key creates a standby Postgres
-cluster streaming from a remote location. So far only streaming from a S3 WAL
-archive is supported.
+cluster streaming from a remote location. There are two options supported
+for a streaming cluster. Continious streaming from S3 WAL storage, and
+streaming directly from host.
 
 * **s3_wal_path**
   the url to S3 bucket containing the WAL archive of the remote primary.
   Required when the `standby` section is present.
+  
+* **standby_host**
+  Standby host is IP or hostname from which standby clustere is streaming
+  WAL records. This should be specified when using `streaming_host` standby method.
+  
+* **standby_method**
+  Specify desired method: `s3_wal` or `streaming_host`. Required.
+
+* **standby_port**
+  Specify port that should be used when connecting to primary.
+  This should be specified when using `streaming_host` standby method.
+
+* **standby_secret_name**
+  Specify secret name that is used to look-up for a password that
+  is need to connect to primary host. Password should be under `password` key
+  of a secret. This is *required* be specified when using `streaming_host` standby method.
 
 ## Volume properties
 
