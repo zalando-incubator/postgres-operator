@@ -300,6 +300,9 @@ var PostgresCRDResourceValidation = apiextv1.CustomResourceValidation{
 					"enableLogicalBackup": {
 						Type: "boolean",
 					},
+					"enableWALArchiving": {
+						Type: "boolean",
+					},
 					"enableMasterLoadBalancer": {
 						Type: "boolean",
 					},

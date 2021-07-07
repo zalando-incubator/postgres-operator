@@ -181,6 +181,7 @@ func TestGenerateSpiloPodEnvVars(t *testing.T) {
 		standbyDescription *acidv1.StandbyDescription
 		customEnvList      []v1.EnvVar
 		expectedValues     []ExpectedValue
+		enableWALArchiving bool
 	}{
 		{
 			subTest: "Will set WAL_GS_BUCKET env",
@@ -193,6 +194,7 @@ func TestGenerateSpiloPodEnvVars(t *testing.T) {
 			standbyDescription: &acidv1.StandbyDescription{},
 			customEnvList:      []v1.EnvVar{},
 			expectedValues:     expectedValuesGSBucket,
+			enableWALArchiving: true,
 		},
 		{
 			subTest: "Will set GOOGLE_APPLICATION_CREDENTIALS env",
@@ -206,13 +208,14 @@ func TestGenerateSpiloPodEnvVars(t *testing.T) {
 			standbyDescription: &acidv1.StandbyDescription{},
 			customEnvList:      []v1.EnvVar{},
 			expectedValues:     expectedValuesGCPCreds,
+			enableWALArchiving: true,
 		},
 	}
 
 	for _, tt := range tests {
 		cluster.OpConfig = tt.opConfig
 
-		actualEnvs := cluster.generateSpiloPodEnvVars(tt.uid, tt.spiloConfig, tt.cloneDescription, tt.standbyDescription, tt.customEnvList)
+		actualEnvs := cluster.generateSpiloPodEnvVars(tt.uid, tt.spiloConfig, tt.cloneDescription, tt.standbyDescription, tt.enableWALArchiving, tt.customEnvList)
 
 		for _, ev := range tt.expectedValues {
 			env := actualEnvs[ev.envIndex]
