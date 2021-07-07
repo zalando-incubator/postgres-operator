@@ -808,6 +808,52 @@ pod_environment_configmap: "postgres-operator-system/pod-env-overrides"
 ...
 ```
 
+### Azure Storage Account Setup
+
+To configure phyiscal backups and WAL to be sent to an azure storage account perform the
+following steps.
+
+1. Generate the K8s secret resource that will contain your storage account
+credentials.
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: psql-wale-creds
+  namespace: postgres-operator-system
+type: Opaque
+stringData:
+  AZURE_STORAGE_ACCOUNT: 'mystorageaccount'
+  AZURE_STORAGE_ACCESS_KEY: '....'
+```
+
+3.  Setup pod environment configmap that instructs the operator to use WAL-G,
+instead of WAL-E, for backup and restore.
+```yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pod-env-overrides
+  namespace: postgres-operator-system
+data:
+  # Any env variable used by spilo can be added
+  USE_WALG_BACKUP: "true"
+  USE_WALG_RESTORE: "true"
+  CLONE_USE_WALG_RESTORE: "true"
+  WALG_AZ_PREFIX: azure://container
+```
+
+4. Then provide this configmap in postgres-operator settings:
+```yml
+...
+# namespaced name of the ConfigMap with environment variables to populate on every pod
+pod_environment_configmap: "postgres-operator-system/pod-env-overrides"
+pod_environment_secret: "postgres-operator-system/psql-wale-creds"
+...
+```
+
+
 ### Restoring physical backups
 
 If cluster members have to be (re)initialized restoring physical backups
