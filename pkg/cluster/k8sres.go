@@ -1966,6 +1966,11 @@ func (c *Cluster) generateLogicalBackupJob() (*batchv1beta1.CronJob, error) {
 
 	annotations := c.generatePodAnnotations(&c.Spec)
 
+	// determine the User, Group and FSGroup for the pod
+	effectiveRunAsUser := c.OpConfig.Resources.SpiloRunAsUser
+	effectiveRunAsGroup := c.OpConfig.Resources.SpiloRunAsGroup
+	effectiveFSGroup := c.OpConfig.Resources.SpiloFSGroup
+
 	// re-use the method that generates DB pod templates
 	if podTemplate, err = c.generatePodTemplate(
 		c.Namespace,
@@ -1975,9 +1980,9 @@ func (c *Cluster) generateLogicalBackupJob() (*batchv1beta1.CronJob, error) {
 		[]v1.Container{},
 		[]v1.Container{},
 		&[]v1.Toleration{},
-		nil,
-		nil,
-		nil,
+		effectiveRunAsUser,
+		effectiveRunAsGroup,
+		effectiveFSGroup,
 		nodeAffinity(c.OpConfig.NodeReadinessLabel, nil),
 		nil,
 		int64(c.OpConfig.PodTerminateGracePeriod.Seconds()),
