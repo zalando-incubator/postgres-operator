@@ -350,6 +350,9 @@ func (c *Cluster) syncStatefulSet() error {
 					return fmt.Errorf("could not replace statefulset: %v", err)
 				}
 			}
+			if err = c.waitStatefulsetPodsReady(); err != nil {
+				return fmt.Errorf("cluster is not ready: %v", err)
+			}
 		}
 
 		if len(podsToRecreate) == 0 && !c.OpConfig.EnableLazySpiloUpgrade {
