@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
 	"reflect"
 	"regexp"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 	acidv1 "github.com/zalando/postgres-operator/pkg/apis/acid.zalan.do/v1"
 
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/zalando/postgres-operator/pkg/generated/clientset/versioned/scheme"
 	"github.com/zalando/postgres-operator/pkg/spec"
 	pgteams "github.com/zalando/postgres-operator/pkg/teams"
@@ -44,6 +46,8 @@ var (
 	databaseNameRegexp    = regexp.MustCompile("^[a-zA-Z_][a-zA-Z0-9_]*$")
 	userRegexp            = regexp.MustCompile(`^[a-z0-9]([-_a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-_a-z0-9]*[a-z0-9])?)*$`)
 	patroniObjectSuffixes = []string{"config", "failover", "sync"}
+	newDBCount 	          = promauto.NewCounter(prometheus.CounterOpts{Name: "pg_new_db", Help: "The total number newly DB created"})
+// Count DB added
 )
 
 // Config contains operator-wide clients and configuration used from a cluster. TODO: remove struct duplication.
@@ -150,7 +154,7 @@ func New(cfg Config, kubeClient k8sutil.KubernetesClient, pgSpec acidv1.Postgres
 		cluster.VolumeResizer = &volumes.EBSVolumeResizer{AWSRegion: cfg.OpConfig.AWSRegion}
 
 	}
-
+	newDBCount.Inc()
 	return cluster
 }
 
