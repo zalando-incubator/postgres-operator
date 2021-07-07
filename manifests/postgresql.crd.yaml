@@ -299,6 +299,8 @@ spec:
                             type: boolean
                           defaultRoles:
                             type: boolean
+              readOnlyRootFilesystem:
+                type: boolean
               replicaLoadBalancer:  # deprecated
                 type: boolean
               resources:

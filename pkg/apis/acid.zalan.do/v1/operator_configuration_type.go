@@ -233,6 +233,7 @@ type OperatorConfigurationData struct {
 	MajorVersionUpgrade        MajorVersionUpgradeConfiguration   `json:"major_version_upgrade"`
 	Kubernetes                 KubernetesMetaConfiguration        `json:"kubernetes"`
 	PostgresPodResources       PostgresPodResourcesDefaults       `json:"postgres_pod_resources"`
+	ReadOnlyRootFilesystem     *bool                              `json:"read_only_root_filesystem,omitempty"`
 	Timeouts                   OperatorTimeouts                   `json:"timeouts"`
 	LoadBalancer               LoadBalancerConfiguration          `json:"load_balancer"`
 	AWSGCP                     AWSGCPConfiguration                `json:"aws_or_gcp"`

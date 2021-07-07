@@ -156,32 +156,38 @@ func generateResourceRequirements(resources acidv1.Resources, defaultResources a
 
 func fillResourceList(spec acidv1.ResourceDescription, defaults acidv1.ResourceDescription) (v1.ResourceList, error) {
 	var err error
-	requests := v1.ResourceList{}
+	resources := v1.ResourceList{}
 
 	if spec.CPU != "" {
-		requests[v1.ResourceCPU], err = resource.ParseQuantity(spec.CPU)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse CPU quantity: %v", err)
+		if spec.CPU != "0" {
+			resources[v1.ResourceCPU], err = resource.ParseQuantity(spec.CPU)
+			if err != nil {
+				return nil, fmt.Errorf("could not parse CPU quantity: %v", err)
+			}
 		}
 	} else {
-		requests[v1.ResourceCPU], err = resource.ParseQuantity(defaults.CPU)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse default CPU quantity: %v", err)
+		if spec.CPU != "0" {
+			resources[v1.ResourceCPU], err = resource.ParseQuantity(defaults.CPU)
+			if err != nil {
+				return nil, fmt.Errorf("could not parse default CPU quantity: %v", err)
+			}
 		}
 	}
 	if spec.Memory != "" {
-		requests[v1.ResourceMemory], err = resource.ParseQuantity(spec.Memory)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse memory quantity: %v", err)
+		if spec.Memory != "0" {
+			resources[v1.ResourceMemory], err = resource.ParseQuantity(spec.Memory)
+			if err != nil {
+				return nil, fmt.Errorf("could not parse memory quantity: %v", err)
+			}
 		}
 	} else {
-		requests[v1.ResourceMemory], err = resource.ParseQuantity(defaults.Memory)
+		resources[v1.ResourceMemory], err = resource.ParseQuantity(defaults.Memory)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse default memory quantity: %v", err)
 		}
 	}
 
-	return requests, nil
+	return resources, nil
 }
 
 func generateSpiloJSONConfiguration(pg *acidv1.PostgresqlParam, patroni *acidv1.Patroni, pamRoleName string, EnablePgVersionEnvVar bool, logger *logrus.Entry) (string, error) {
@@ -457,6 +463,7 @@ func generateContainer(
 	resourceRequirements *v1.ResourceRequirements,
 	envVars []v1.EnvVar,
 	volumeMounts []v1.VolumeMount,
+	readOnlyRootFilesystem *bool,
 	privilegedMode bool,
 	privilegeEscalationMode *bool,
 	additionalPodCapabilities *v1.Capabilities,
@@ -485,7 +492,7 @@ func generateContainer(
 		SecurityContext: &v1.SecurityContext{
 			AllowPrivilegeEscalation: privilegeEscalationMode,
 			Privileged:               &privilegedMode,
-			ReadOnlyRootFilesystem:   util.False(),
+			ReadOnlyRootFilesystem:   readOnlyRootFilesystem,
 			Capabilities:             additionalPodCapabilities,
 		},
 	}
@@ -947,7 +954,6 @@ func extractPgVersionFromBinPath(binPath string, template string) (string, error
 }
 
 func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*appsv1.StatefulSet, error) {
-
 	var (
 		err                 error
 		initContainers      []v1.Container
@@ -961,7 +967,6 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*appsv1.Statef
 	if c.OpConfig.SetMemoryRequestToLimit {
 
 		// controller adjusts the default memory request at operator startup
-
 		request := spec.Resources.ResourceRequests.Memory
 		if request == "" {
 			request = c.OpConfig.Resources.DefaultMemoryRequest
@@ -979,7 +984,6 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*appsv1.Statef
 		if isSmaller {
 			c.logger.Warningf("The memory request of %v for the Postgres container is increased to match the memory limit of %v.", request, limit)
 			spec.Resources.ResourceRequests.Memory = limit
-
 		}
 
 		// controller adjusts the Scalyr sidecar request at operator startup
@@ -1008,7 +1012,6 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*appsv1.Statef
 				sidecar.Resources.ResourceRequests.Memory = sidecar.Resources.ResourceLimits.Memory
 			}
 		}
-
 	}
 
 	defaultResources := c.makeDefaultResources()
@@ -1178,6 +1181,7 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*appsv1.Statef
 		resourceRequirements,
 		deduplicateEnvVars(spiloEnvVars, constants.PostgresContainerName, c.logger),
 		volumeMounts,
+		c.OpConfig.Resources.ReadOnlyRootFilesystem,
 		c.OpConfig.Resources.SpiloPrivileged,
 		c.OpConfig.Resources.SpiloAllowPrivilegeEscalation,
 		generateCapabilities(c.OpConfig.AdditionalPodCapabilities),
@@ -1940,6 +1944,7 @@ func (c *Cluster) generateLogicalBackupJob() (*batchv1beta1.CronJob, error) {
 		resourceRequirements,
 		envVars,
 		[]v1.VolumeMount{},
+		c.OpConfig.ReadOnlyRootFilesystem,
 		c.OpConfig.SpiloPrivileged, // use same value as for normal DB pods
 		c.OpConfig.SpiloAllowPrivilegeEscalation,
 		nil,

@@ -388,6 +388,11 @@ func (in *OperatorConfigurationData) DeepCopyInto(out *OperatorConfigurationData
 	out.MajorVersionUpgrade = in.MajorVersionUpgrade
 	in.Kubernetes.DeepCopyInto(&out.Kubernetes)
 	out.PostgresPodResources = in.PostgresPodResources
+	if in.ReadOnlyRootFilesystem != nil {
+		in, out := &in.ReadOnlyRootFilesystem, &out.ReadOnlyRootFilesystem
+		*out = new(bool)
+		**out = **in
+	}
 	out.Timeouts = in.Timeouts
 	in.LoadBalancer.DeepCopyInto(&out.LoadBalancer)
 	out.AWSGCP = in.AWSGCP
@@ -685,6 +690,11 @@ func (in *PostgresSpec) DeepCopyInto(out *PostgresSpec) {
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
+	}
+	if in.ReadOnlyRootFilesystem != nil {
+		in, out := &in.ReadOnlyRootFilesystem, &out.ReadOnlyRootFilesystem
+		*out = new(bool)
+		**out = **in
 	}
 	if in.ShmVolume != nil {
 		in, out := &in.ShmVolume, &out.ShmVolume

@@ -32,6 +32,7 @@ type Resources struct {
 	SpiloRunAsGroup               *int64              `name:"spilo_runasgroup"`
 	SpiloFSGroup                  *int64              `name:"spilo_fsgroup"`
 	PodPriorityClassName          string              `name:"pod_priority_class_name"`
+	ReadOnlyRootFilesystem        *bool               `name:"read_only_root_filesystem" default:"false"`
 	ClusterDomain                 string              `name:"cluster_domain" default:"cluster.local"`
 	SpiloPrivileged               bool                `name:"spilo_privileged" default:"false"`
 	SpiloAllowPrivilegeEscalation *bool               `name:"spilo_allow_privilege_escalation" default:"true"`

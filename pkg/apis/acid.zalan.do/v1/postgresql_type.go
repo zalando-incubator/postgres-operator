@@ -53,27 +53,28 @@ type PostgresSpec struct {
 	// load balancers' source ranges are the same for master and replica services
 	AllowedSourceRanges []string `json:"allowedSourceRanges"`
 
-	NumberOfInstances     int32                       `json:"numberOfInstances"`
-	Users                 map[string]UserFlags        `json:"users,omitempty"`
-	MaintenanceWindows    []MaintenanceWindow         `json:"maintenanceWindows,omitempty"`
-	Clone                 *CloneDescription           `json:"clone,omitempty"`
-	ClusterName           string                      `json:"-"`
-	Databases             map[string]string           `json:"databases,omitempty"`
-	PreparedDatabases     map[string]PreparedDatabase `json:"preparedDatabases,omitempty"`
-	SchedulerName         *string                     `json:"schedulerName,omitempty"`
-	NodeAffinity          *v1.NodeAffinity            `json:"nodeAffinity,omitempty"`
-	Tolerations           []v1.Toleration             `json:"tolerations,omitempty"`
-	Sidecars              []Sidecar                   `json:"sidecars,omitempty"`
-	InitContainers        []v1.Container              `json:"initContainers,omitempty"`
-	PodPriorityClassName  string                      `json:"podPriorityClassName,omitempty"`
-	ShmVolume             *bool                       `json:"enableShmVolume,omitempty"`
-	EnableLogicalBackup   bool                        `json:"enableLogicalBackup,omitempty"`
-	LogicalBackupSchedule string                      `json:"logicalBackupSchedule,omitempty"`
-	StandbyCluster        *StandbyDescription         `json:"standby,omitempty"`
-	PodAnnotations        map[string]string           `json:"podAnnotations,omitempty"`
-	ServiceAnnotations    map[string]string           `json:"serviceAnnotations,omitempty"`
-	TLS                   *TLSDescription             `json:"tls,omitempty"`
-	AdditionalVolumes     []AdditionalVolume          `json:"additionalVolumes,omitempty"`
+	NumberOfInstances      int32                       `json:"numberOfInstances"`
+	Users                  map[string]UserFlags        `json:"users,omitempty"`
+	MaintenanceWindows     []MaintenanceWindow         `json:"maintenanceWindows,omitempty"`
+	Clone                  *CloneDescription           `json:"clone,omitempty"`
+	ClusterName            string                      `json:"-"`
+	Databases              map[string]string           `json:"databases,omitempty"`
+	PreparedDatabases      map[string]PreparedDatabase `json:"preparedDatabases,omitempty"`
+	SchedulerName          *string                     `json:"schedulerName,omitempty"`
+	NodeAffinity           *v1.NodeAffinity            `json:"nodeAffinity,omitempty"`
+	Tolerations            []v1.Toleration             `json:"tolerations,omitempty"`
+	Sidecars               []Sidecar                   `json:"sidecars,omitempty"`
+	InitContainers         []v1.Container              `json:"initContainers,omitempty"`
+	ReadOnlyRootFilesystem *bool                       `json:"readOnlyRootFilesystem,omitempty"`
+	PodPriorityClassName   string                      `json:"podPriorityClassName,omitempty"`
+	ShmVolume              *bool                       `json:"enableShmVolume,omitempty"`
+	EnableLogicalBackup    bool                        `json:"enableLogicalBackup,omitempty"`
+	LogicalBackupSchedule  string                      `json:"logicalBackupSchedule,omitempty"`
+	StandbyCluster         *StandbyDescription         `json:"standby,omitempty"`
+	PodAnnotations         map[string]string           `json:"podAnnotations,omitempty"`
+	ServiceAnnotations     map[string]string           `json:"serviceAnnotations,omitempty"`
+	TLS                    *TLSDescription             `json:"tls,omitempty"`
+	AdditionalVolumes      []AdditionalVolume          `json:"additionalVolumes,omitempty"`
 
 	// deprecated json tags
 	InitContainersOld       []v1.Container `json:"init_containers,omitempty"`

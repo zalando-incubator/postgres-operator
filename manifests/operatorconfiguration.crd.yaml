@@ -285,6 +285,8 @@ spec:
                       type: string
                   watched_namespace:
                     type: string
+              read_only_root_filesystem:
+                type: boolean
               postgres_pod_resources:
                 type: object
                 properties:

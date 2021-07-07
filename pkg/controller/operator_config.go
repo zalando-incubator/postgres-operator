@@ -114,6 +114,8 @@ func (c *Controller) importConfigurationFromCRD(fromCRD *acidv1.OperatorConfigur
 	result.EnablePodAntiAffinity = fromCRD.Kubernetes.EnablePodAntiAffinity
 	result.PodAntiAffinityTopologyKey = util.Coalesce(fromCRD.Kubernetes.PodAntiAffinityTopologyKey, "kubernetes.io/hostname")
 
+	result.ReadOnlyRootFilesystem = fromCRD.ReadOnlyRootFilesystem
+
 	// Postgres Pod resources
 	result.DefaultCPURequest = util.Coalesce(fromCRD.PostgresPodResources.DefaultCPURequest, "100m")
 	result.DefaultMemoryRequest = util.Coalesce(fromCRD.PostgresPodResources.DefaultMemoryRequest, "100Mi")

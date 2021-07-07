@@ -157,6 +157,10 @@ Those are top-level keys, containing both leaf keys and groups.
   [operator deployment manually](../../manifests/postgres-operator.yaml#L20).
   The default is `false`.
 
+* **read_only_root_filesystem**
+  This sets readOnlyRootFilesystem for the Postgres pods.
+  The default is `false`.
+
 ## Postgres users
 
 Parameters describing Postgres users. In a CRD-configuration, they are grouped
@@ -362,6 +366,10 @@ configuration they are grouped under the `kubernetes` key.
   that should be assigned to the Postgres pods. The priority class itself must
   be defined in advance. Default is empty (use the default priority class).
 
+  * **read_only_root_filesystem**
+  boolean parameter controlling whether containers should use [readOnlyRootFilesystem](https://kubernetes.io/docs/concepts/policy/pod-security-policy/#volumes-and-file-systems).
+  `kubectl explain statefulset.spec.template.spec.securityContext.readOnlyRootFilesystem`
+
 * **spilo_runasuser**
   sets the user ID which should be used in the container to run the process.
   This must be set to run the container without root. By default the container
@@ -428,7 +436,7 @@ configuration they are grouped under the `kubernetes` key.
 
 This group allows you to configure resource requests for the Postgres pods.
 Those parameters are grouped under the `postgres_pod_resources` key in a
-CRD-based configuration.
+CRD-based configuration. `0` is the null value for all resource requests. Any limit that's set requires its request counterpart to be set for scheduling.
 
 * **default_cpu_request**
   CPU request value for the Postgres containers, unless overridden by

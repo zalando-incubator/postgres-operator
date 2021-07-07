@@ -350,5 +350,9 @@ func IsSmallerQuantity(requestStr, limitStr string) (bool, error) {
 		return false, fmt.Errorf("could not parse limit %v : %v", limitStr, err2)
 	}
 
+	if limitStr == "0" { // Zero disables setting a limit
+		return false, nil
+	}
+
 	return request.Cmp(limit) == -1, nil
 }
