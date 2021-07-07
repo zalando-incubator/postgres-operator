@@ -364,6 +364,11 @@ properties of the persistent storage that stores Postgres data.
   When running the operator on AWS the latest generation of EBS volumes (`gp3`)
   allows for configuring the throughput in MB/s. Maximum is 1000. Optional.
 
+* **selector**
+  A label query over PVs to consider for binding. See the [Kubernetes 
+  documentation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+  for details on using `matchLabels` and `matchExpressions`. Optional
+
 ## Sidecar definitions
 
 Those parameters are defined under the `sidecars` key. They consist of a list

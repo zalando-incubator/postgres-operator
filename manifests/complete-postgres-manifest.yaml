@@ -46,6 +46,12 @@ spec:
 #    storageClass: my-sc
 #    iops: 1000  # for EBS gp3
 #    throughput: 250  # in MB/s for EBS gp3
+#    selector:
+#      matchExpressions:
+#        - { key: flavour, operator: In, values: [ "banana", "chocolate" ] }
+#      matchLabels:
+#        environment: dev
+#        service: postgres
   additionalVolumes:
     - name: empty
       mountPath: /opt/empty

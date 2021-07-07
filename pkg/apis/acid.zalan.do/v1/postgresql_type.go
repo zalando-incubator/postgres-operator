@@ -113,12 +113,13 @@ type MaintenanceWindow struct {
 
 // Volume describes a single volume in the manifest.
 type Volume struct {
-	Size         string `json:"size"`
-	StorageClass string `json:"storageClass,omitempty"`
-	SubPath      string `json:"subPath,omitempty"`
-	Iops         *int64 `json:"iops,omitempty"`
-	Throughput   *int64 `json:"throughput,omitempty"`
-	VolumeType   string `json:"type,omitempty"`
+	Selector     *metav1.LabelSelector `json:"selector,omitempty"`
+	Size         string                `json:"size"`
+	StorageClass string                `json:"storageClass,omitempty"`
+	SubPath      string                `json:"subPath,omitempty"`
+	Iops         *int64                `json:"iops,omitempty"`
+	Throughput   *int64                `json:"throughput,omitempty"`
+	VolumeType   string                `json:"type,omitempty"`
 }
 
 // AdditionalVolume specs additional optional volumes for statefulset

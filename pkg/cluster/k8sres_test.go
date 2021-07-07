@@ -1509,3 +1509,106 @@ func TestGenerateCapabilities(t *testing.T) {
 		}
 	}
 }
+
+func TestVolumeSelector(t *testing.T) {
+	testName := "TestVolumeSelector"
+	makeSpec := func(volume acidv1.Volume) acidv1.PostgresSpec {
+		return acidv1.PostgresSpec{
+			TeamID:            "myapp",
+			NumberOfInstances: 0,
+			Resources: acidv1.Resources{
+				ResourceRequests: acidv1.ResourceDescription{CPU: "1", Memory: "10"},
+				ResourceLimits:   acidv1.ResourceDescription{CPU: "1", Memory: "10"},
+			},
+			Volume: volume,
+		}
+	}
+
+	tests := []struct {
+		subTest      string
+		volume       acidv1.Volume
+		wantSelector *metav1.LabelSelector
+	}{
+		{
+			subTest: "PVC template has no selector",
+			volume: acidv1.Volume{
+				Size: "1G",
+			},
+			wantSelector: nil,
+		},
+		{
+			subTest: "PVC template has simple label selector",
+			volume: acidv1.Volume{
+				Size: "1G",
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"environment": "unittest"},
+				},
+			},
+			wantSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"environment": "unittest"},
+			},
+		},
+		{
+			subTest: "PVC template has full selector",
+			volume: acidv1.Volume{
+				Size: "1G",
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"environment": "unittest"},
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      "flavour",
+							Operator: metav1.LabelSelectorOpIn,
+							Values:   []string{"banana", "chocolate"},
+						},
+					},
+				},
+			},
+			wantSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"environment": "unittest"},
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "flavour",
+						Operator: metav1.LabelSelectorOpIn,
+						Values:   []string{"banana", "chocolate"},
+					},
+				},
+			},
+		},
+	}
+
+	cluster := New(
+		Config{
+			OpConfig: config.Config{
+				PodManagementPolicy: "ordered_ready",
+				ProtectedRoles:      []string{"admin"},
+				Auth: config.Auth{
+					SuperUsername:       superUserName,
+					ReplicationUsername: replicationUserName,
+				},
+			},
+		}, k8sutil.KubernetesClient{}, acidv1.Postgresql{}, logger, eventRecorder)
+
+	for _, tt := range tests {
+		pgSpec := makeSpec(tt.volume)
+		sts, err := cluster.generateStatefulSet(&pgSpec)
+		if err != nil {
+			t.Fatalf("%s %s: no statefulset created %v", testName, tt.subTest, err)
+		}
+
+		volIdx := len(sts.Spec.VolumeClaimTemplates)
+		for i, ct := range sts.Spec.VolumeClaimTemplates {
+			if ct.ObjectMeta.Name == constants.DataVolumeName {
+				volIdx = i
+				break
+			}
+		}
+		if volIdx == len(sts.Spec.VolumeClaimTemplates) {
+			t.Errorf("%s %s: no datavolume found in sts", testName, tt.subTest)
+		}
+
+		selector := sts.Spec.VolumeClaimTemplates[volIdx].Spec.Selector
+		if !reflect.DeepEqual(selector, tt.wantSelector) {
+			t.Errorf("%s %s: expected: %#v but got: %#v", testName, tt.subTest, tt.wantSelector, selector)
+		}
+	}
+}
