@@ -167,6 +167,7 @@ type Config struct {
 	KubeIAMRole                            string            `name:"kube_iam_role"`
 	WALGSBucket                            string            `name:"wal_gs_bucket"`
 	GCPCredentials                         string            `name:"gcp_credentials"`
+	WALAZStorageAccount                    string            `name:"wal_az_storage_account"`
 	AdditionalSecretMount                  string            `name:"additional_secret_mount"`
 	AdditionalSecretMountPath              string            `name:"additional_secret_mount_path" default:"/meta/credentials"`
 	EnableEBSGp3Migration                  bool              `name:"enable_ebs_gp3_migration" default:"false"`

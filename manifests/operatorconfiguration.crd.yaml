@@ -384,6 +384,8 @@ spec:
                     type: string
                   log_s3_bucket:
                     type: string
+                  wal_az_storage_account:
+                    type: string
                   wal_gs_bucket:
                     type: string
                   wal_s3_bucket:

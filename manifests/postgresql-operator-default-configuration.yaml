@@ -121,6 +121,7 @@ configuration:
     # gcp_credentials: ""
     # kube_iam_role: ""
     # log_s3_bucket: ""
+    # wal_az_storage_account: ""
     # wal_gs_bucket: ""
     # wal_s3_bucket: ""
   logical_backup:

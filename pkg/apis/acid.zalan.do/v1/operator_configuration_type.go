@@ -132,6 +132,7 @@ type AWSGCPConfiguration struct {
 	AWSRegion                    string `json:"aws_region,omitempty"`
 	WALGSBucket                  string `json:"wal_gs_bucket,omitempty"`
 	GCPCredentials               string `json:"gcp_credentials,omitempty"`
+	WALAZStorageAccount          string `json:"wal_az_storage_account,omitempty"`
 	LogS3Bucket                  string `json:"log_s3_bucket,omitempty"`
 	KubeIAMRole                  string `json:"kube_iam_role,omitempty"`
 	AdditionalSecretMount        string `json:"additional_secret_mount,omitempty"`

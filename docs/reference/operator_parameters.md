@@ -559,6 +559,12 @@ yet officially supported.
   [service accounts](https://cloud.google.com/kubernetes-engine/docs/tutorials/authenticating-to-cloud-platform).
   The default is empty
 
+* **wal_az_storage_account**
+  Azure Storage Account to use for shipping WAL segments with WAL-G. The
+  storage account must exist and be accessible by Postgres pods. Note, only the
+  name of the storage account is required.
+  The default is empty.
+
 * **log_s3_bucket**
   S3 bucket to use for shipping Postgres daily logs. Works only with S3 on AWS.
   The bucket has to be present and accessible by Postgres pods. The default is

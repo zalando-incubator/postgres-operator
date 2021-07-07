@@ -798,6 +798,12 @@ func (c *Cluster) generateSpiloPodEnvVars(uid types.UID, spiloConfiguration stri
 		envVars = append(envVars, v1.EnvVar{Name: "WAL_BUCKET_SCOPE_PREFIX", Value: ""})
 	}
 
+	if c.OpConfig.WALAZStorageAccount != "" {
+		envVars = append(envVars, v1.EnvVar{Name: "AZURE_STORAGE_ACCOUNT", Value: c.OpConfig.WALAZStorageAccount})
+		envVars = append(envVars, v1.EnvVar{Name: "WAL_BUCKET_SCOPE_SUFFIX", Value: getBucketScopeSuffix(string(uid))})
+		envVars = append(envVars, v1.EnvVar{Name: "WAL_BUCKET_SCOPE_PREFIX", Value: ""})
+	}
+
 	if c.OpConfig.GCPCredentials != "" {
 		envVars = append(envVars, v1.EnvVar{Name: "GOOGLE_APPLICATION_CREDENTIALS", Value: c.OpConfig.GCPCredentials})
 	}
@@ -1803,6 +1809,14 @@ func (c *Cluster) generateCloneEnvironment(description *acidv1.CloneDescription)
 					{
 						Name:  "CLONE_GOOGLE_APPLICATION_CREDENTIALS",
 						Value: c.OpConfig.GCPCredentials,
+					},
+				}
+				result = append(result, envs...)
+			} else if c.OpConfig.WALAZStorageAccount != "" {
+				envs := []v1.EnvVar{
+					{
+						Name:  "CLONE_AZURE_STORAGE_ACCOUNT",
+						Value: c.OpConfig.WALAZStorageAccount,
 					},
 				}
 				result = append(result, envs...)

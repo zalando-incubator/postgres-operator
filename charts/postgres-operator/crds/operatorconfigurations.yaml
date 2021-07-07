@@ -395,6 +395,8 @@ spec:
                     type: string
                   wal_s3_bucket:
                     type: string
+                  wal_az_storage_account:
+                    type: string
               logical_backup:
                 type: object
                 properties:

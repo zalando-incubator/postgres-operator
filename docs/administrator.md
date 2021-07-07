@@ -808,6 +808,63 @@ pod_environment_configmap: "postgres-operator-system/pod-env-overrides"
 ...
 ```
 
+### Azure setup
+
+To configure the operator on Azure these prerequisites are needed:
+
+* A storage account in the same region as the Kubernetes cluster.
+
+The configuration parameters that we will be using are:
+
+* `pod_environment_secret`
+* `wal_az_storage_account`
+
+1. Generate the K8s secret resource that will contain your storage account's
+access key. You will need a copy of this secret in every namespace you want to
+create postgresql clusters.
+
+The latest version of WAL-G (v1.0) supports the use of a SASS token, but you'll
+have to make due with using the primary or secondary access token until the
+version of WAL-G is updated in the postgres-operator.
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: psql-backup-creds
+  namespace: default
+type: Opaque
+stringData:
+  AZURE_STORAGE_ACCESS_KEY: <primary or secondary access key>
+```
+
+2. Setup pod environment configmap that instructs the operator to use WAL-G,
+instead of WAL-E, for backup and restore.
+```yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pod-env-overrides
+  namespace: postgres-operator-system
+data:
+  # Any env variable used by spilo can be added
+  USE_WALG_BACKUP: "true"
+  USE_WALG_RESTORE: "true"
+  CLONE_USE_WALG_RESTORE: "true"
+```
+
+3. Setup your operator configuration values. With the `psql-backup-creds`
+and `pod-env-overrides` resources applied to your cluster, ensure that the operator's configuration
+is set up like the following:
+```yml
+...
+aws_or_gcp:
+  pod_environment_secret: "pgsql-backup-creds"
+  pod_environment_configmap: "postgres-operator-system/pod-env-overrides"
+  wal_az_storage_account: "postgresbackupsbucket28302F2"  # name of storage account to save the WAL-G logs
+...
+```
+
 ### Restoring physical backups
 
 If cluster members have to be (re)initialized restoring physical backups

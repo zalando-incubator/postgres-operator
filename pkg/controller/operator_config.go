@@ -146,6 +146,7 @@ func (c *Controller) importConfigurationFromCRD(fromCRD *acidv1.OperatorConfigur
 	result.KubeIAMRole = fromCRD.AWSGCP.KubeIAMRole
 	result.WALGSBucket = fromCRD.AWSGCP.WALGSBucket
 	result.GCPCredentials = fromCRD.AWSGCP.GCPCredentials
+	result.WALAZStorageAccount = fromCRD.AWSGCP.WALAZStorageAccount
 	result.AdditionalSecretMount = fromCRD.AWSGCP.AdditionalSecretMount
 	result.AdditionalSecretMountPath = util.Coalesce(fromCRD.AWSGCP.AdditionalSecretMountPath, "/meta/credentials")
 	result.EnableEBSGp3Migration = fromCRD.AWSGCP.EnableEBSGp3Migration
