@@ -1659,6 +1659,13 @@ func (c *Cluster) generateService(role PostgresRole, spec *acidv1.PostgresSpec) 
 		Type:  v1.ServiceTypeClusterIP,
 	}
 
+	if spec.ServiceNodePort != nil  && role == Master {
+		serviceSpec.Type =  v1.ServiceTypeNodePort
+		if *spec.ServiceNodePort > 0 {
+			servicePort := &serviceSpec
+			servicePort.Ports[0].NodePort = *spec.ServiceNodePort
+		}
+	}
 	if role == Replica || c.patroniKubernetesUseConfigMaps() {
 		serviceSpec.Selector = c.roleLabelsSet(false, role)
 	}
