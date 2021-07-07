@@ -285,6 +285,8 @@ func (c *Cluster) generateConnectionPoolerPodTemplate(role PostgresRole) (
 		},
 	}
 
+	tolerationsSpec := tolerations(&spec.Tolerations, c.OpConfig.PodToleration)
+
 	podTemplate := &v1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      c.connectionPoolerLabels(role, true).MatchLabels,
@@ -294,10 +296,16 @@ func (c *Cluster) generateConnectionPoolerPodTemplate(role PostgresRole) (
 		Spec: v1.PodSpec{
 			TerminationGracePeriodSeconds: &gracePeriod,
 			Containers:                    []v1.Container{poolerContainer},
-			// TODO: add tolerations to scheduler pooler on the same node
-			// as database
-			//Tolerations:                   *tolerationsSpec,
+			Tolerations:                   tolerationsSpec,
 		},
+	}
+
+	nodeAffinity := nodeAffinity(c.OpConfig.NodeReadinessLabel, spec.NodeAffinity)
+	if c.OpConfig.EnablePodAntiAffinity {
+		labelsSet := labels.Set(c.connectionPoolerLabels(role, false).MatchLabels)
+		podTemplate.Spec.Affinity = generatePodAffinity(labelsSet, c.OpConfig.PodAntiAffinityTopologyKey, nodeAffinity)
+	} else if nodeAffinity != nil {
+		podTemplate.Spec.Affinity = nodeAffinity
 	}
 
 	return podTemplate, nil
