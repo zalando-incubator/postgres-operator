@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: postgres-operator
+      app.kubernetes.io/name: postgres-operator
+  template:
+    metadata:
+      annotations:
+        checksum/config: 52ef20120c7c04050deedcf1a89d46ab05d8f1a393965add8b29be5f3f020443
+      labels:
+        app.kubernetes.io/instance: postgres-operator
+        app.kubernetes.io/name: postgres-operator
+    spec:
+      containers:
+      - env:
+        - name: POSTGRES_OPERATOR_CONFIGURATION_OBJECT
+          value: postgres-operator
+        image: registry.opensource.zalan.do/acid/postgres-operator:v1.2.0
+        imagePullPolicy: IfNotPresent
+        name: postgres-operator
+      serviceAccountName: operator
+      tolerations: []

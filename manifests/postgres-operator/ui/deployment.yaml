@@ -1,0 +1,68 @@
+apiVersion: "apps/v1"
+kind: "Deployment"
+metadata:
+  name: "postgres-operator-ui"
+  namespace: "default"
+  labels:
+    application: "postgres-operator-ui"
+    team: "acid"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application: "postgres-operator-ui"
+  template:
+    metadata:
+      labels:
+        application: "postgres-operator-ui"
+        team: "acid"
+    spec:
+      serviceAccountName: postgres-operator-ui
+      containers:
+        - name: "service"
+          image: registry.opensource.zalan.do/acid/postgres-operator-ui:v1.2.0
+          ports:
+            - containerPort: 8081
+              protocol: "TCP"
+          readinessProbe:
+            httpGet:
+              path: "/health"
+              port: 8081
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: "300m"
+              memory: "3000Mi"
+            requests:
+              cpu: "100m"
+              memory: "100Mi"
+          env:
+            - name: "APP_URL"
+              value: "http://localhost:8081"
+            - name: "OPERATOR_API_URL"
+              value: "http://localhost:8080"
+            - name: "TARGET_NAMESPACE"
+              value: "default"
+            - name: "TEAMS"
+              value: |-
+                [
+                  "acid"
+                ]
+            - name: "OPERATOR_UI_CONFIG"
+              value: |-
+                {
+                  "docs_link":"https://postgres-operator.readthedocs.io/en/latest/",
+                  "dns_format_string": "{1}-{0}.{2}",
+                  "databases_visible": true,
+                  "master_load_balancer_visible": true,
+                  "nat_gateways_visible": false,
+                  "replica_load_balancer_visible": true,
+                  "resources_visible": true,
+                  "users_visible": true,
+                  "postgresql_versions": [
+                    "11",
+                    "10",
+                    "9.6"
+                  ]
+                }

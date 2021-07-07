@@ -1,0 +1,10 @@
+# https://github.com/zalando/postgres-operator/blob/master/docs/user.md#clone-from-s3
+apiVersion: "acid.zalan.do/v1"
+kind: postgresql
+metadata:
+  name: postgres-cluster
+  namespace: postgres-cluster
+spec:
+  clone:
+    uid: b9c8455e-b748-11e9-a18d-02650311323e
+    cluster: postgres-cluster

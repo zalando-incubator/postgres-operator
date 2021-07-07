@@ -1,0 +1,15 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: postgresqls.acid.zalan.do
+spec:
+  group: acid.zalan.do
+  names:
+    kind: postgresql
+    listKind: postgresqlList
+    plural: postgresqls
+    shortNames:
+    - pg
+    singular: postgresql
+  scope: Namespaced
+  version: v1

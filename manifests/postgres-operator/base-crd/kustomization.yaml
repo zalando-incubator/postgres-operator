@@ -1,0 +1,23 @@
+# Labels to add to all resources and selectors.
+commonLabels:
+  app.kubernetes.io/instance: postgres-operator
+  app.kubernetes.io/managed-by: Tiller
+  app.kubernetes.io/name: postgres-operator
+  helm.sh/chart: postgres-operator-1.2.0
+
+# Images modify the tags for images without
+# creating patches.
+images:
+- name: registry.opensource.zalan.do/acid/postgres-operator
+  newTag: v1.2.0
+
+# List of resource files that kustomize reads, modifies
+# and emits as a YAML string
+resources:
+- operator-clusterrole.yaml
+- operator-crb.yaml
+- operator-sa.yaml
+- operatorconfigurations.acid.zalan.do-crd.yaml
+- postgres-operator-deploy.yaml
+- postgres-operator-operatorconfiguration.yaml
+- postgresqls.acid.zalan.do-crd.yaml

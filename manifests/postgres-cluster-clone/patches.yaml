@@ -1,0 +1,10 @@
+apiVersion: "acid.zalan.do/v1"
+kind: postgresql
+metadata:
+  name: postgres-cluster
+  # > you can clone only from clusters within the same namespace.
+  # See https://github.com/zalando/postgres-operator/blob/master/docs/user.md#clone-directly
+  namespace: postgres-cluster
+spec:
+  clone:
+    cluster: postgres-cluster

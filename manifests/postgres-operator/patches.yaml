@@ -1,0 +1,36 @@
+apiVersion: acid.zalan.do/v1
+kind: OperatorConfiguration
+metadata:
+  name: postgres-operator
+configuration:
+  aws_or_gcp:
+    aws_region: us-west-1
+  load_balancer:
+    enable_master_load_balancer: false
+  logical_backup:
+    logical_backup_docker_image: registry.opensource.zalan.do/acid/logical-backup
+    logical_backup_s3_bucket: postgres-operator-erica-nvda-dev
+    logical_backup_schedule: 30 00 * * *
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-operator-ui
+spec:
+  template:
+    spec:
+      containers:
+      - name: service
+        env:
+        - name: OPERATOR_API_URL
+          value: http://$(OPERATOR_API_SERVICE)
+        - name: TARGET_NAMESPACE
+          value: postgres-cluster
+        - name: TEAMS
+          value: |-
+            [
+              "acid"
+            ]
+        envFrom:
+        - configMapRef:
+            name: postgres-operator-ui

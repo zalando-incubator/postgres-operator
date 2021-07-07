@@ -1,0 +1,14 @@
+# https://github.com/zalando/postgres-operator/blob/master/docs/reference/cluster_manifest.md
+apiVersion: "acid.zalan.do/v1"
+kind: postgresql
+metadata:
+  name: postgres-cluster
+spec:
+  teamId: acid
+  volume:
+    size: 10Gi
+  numberOfInstances: 1
+  postgresql:
+    version: "10"
+  # # NOT WORKING, see https://github.com/zalando/postgres-operator/issues/641
+  # enableLogicalBackup: true

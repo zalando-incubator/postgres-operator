@@ -1,0 +1,73 @@
+apiVersion: acid.zalan.do/v1
+configuration:
+  aws_or_gcp:
+    aws_region: eu-central-1
+  debug:
+    debug_logging: true
+    enable_database_access: true
+  docker_image: registry.opensource.zalan.do/acid/spilo-11:1.5-p9
+  enable_shm_volume: true
+  etcd_host: ""
+  kubernetes:
+    cluster_domain: cluster.local
+    cluster_labels:
+      application: spilo
+    cluster_name_label: cluster-name
+    enable_pod_antiaffinity: false
+    enable_pod_disruption_budget: true
+    oauth_token_secret_name: postgres-operator
+    pdb_name_format: postgres-{cluster}-pdb
+    pod_antiaffinity_topology_key: kubernetes.io/hostname
+    pod_management_policy: ordered_ready
+    pod_role_label: spilo-role
+    pod_service_account_name: operator
+    pod_terminate_grace_period: 5m
+    secret_name_template: '{username}.{cluster}.credentials.{tprkind}.{tprgroup}'
+    spilo_privileged: false
+    watched_namespace: '*'
+  load_balancer:
+    db_hosted_zone: db.example.com
+    enable_master_load_balancer: true
+    enable_replica_load_balancer: false
+    master_dns_name_format: '{cluster}.{team}.{hostedzone}'
+    replica_dns_name_format: '{cluster}-repl.{team}.{hostedzone}'
+  logging_rest_api:
+    api_port: 8080
+    cluster_history_entries: 1000
+    ring_log_lines: 100
+  logical_backup:
+    logical_backup_docker_image: registry.opensource.zalan.do/acid/logical-backup
+    logical_backup_s3_bucket: my-bucket-url
+    logical_backup_schedule: 30 00 * * *
+  max_instances: -1
+  min_instances: -1
+  postgres_pod_resources:
+    default_cpu_limit: "3"
+    default_cpu_request: 100m
+    default_memory_limit: 1Gi
+    default_memory_request: 100Mi
+  repair_period: 5m
+  resync_period: 30m
+  teams_api:
+    enable_team_superuser: false
+    enable_teams_api: false
+    pam_role_name: zalandos
+    protected_role_names:
+    - admin
+    team_admin_role: admin
+    team_api_role_configuration:
+      log_statement: all
+  timeouts:
+    pod_deletion_wait_timeout: 10m
+    pod_label_wait_timeout: 10m
+    ready_wait_interval: 3s
+    ready_wait_timeout: 30s
+    resource_check_interval: 3s
+    resource_check_timeout: 10m
+  users:
+    replication_username: standby
+    super_username: postgres
+  workers: 4
+kind: OperatorConfiguration
+metadata:
+  name: postgres-operator
