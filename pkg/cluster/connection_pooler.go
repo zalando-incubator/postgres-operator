@@ -162,7 +162,11 @@ func (c *Cluster) getConnectionPoolerEnvVars() []v1.EnvVar {
 
 	maxDBConn := *effectiveMaxDBConn / *numberOfInstances
 
-	defaultSize := maxDBConn / 2
+	// Following pooler parameters are per pool, which means they have to be
+	// calculated from the global max db connections adjusted by the number of
+	// pairs (database, user).
+	numberOfPools := int32(len(spec.Users) * len(spec.Databases))
+	defaultSize := (maxDBConn / numberOfPools) / 2
 	minSize := defaultSize / 2
 	reserveSize := minSize
 
