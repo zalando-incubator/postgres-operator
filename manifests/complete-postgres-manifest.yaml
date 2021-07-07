@@ -110,6 +110,7 @@ spec:
     retry_timeout: 10
     synchronous_mode: false
     synchronous_mode_strict: false
+    synchronous_node_count: 1
     maximum_lag_on_failover: 33554432
 
 # restore a Postgres DB with point-in-time-recovery

@@ -51,6 +51,7 @@ type patroniDCS struct {
 	MaximumLagOnFailover     float32                      `json:"maximum_lag_on_failover,omitempty"`
 	SynchronousMode          bool                         `json:"synchronous_mode,omitempty"`
 	SynchronousModeStrict    bool                         `json:"synchronous_mode_strict,omitempty"`
+	SynchronousNodeCount     uint32                       `json:"synchronous_node_count,omitempty"`
 	PGBootstrapConfiguration map[string]interface{}       `json:"postgresql,omitempty"`
 	Slots                    map[string]map[string]string `json:"slots,omitempty"`
 }
@@ -262,6 +263,9 @@ PatroniInitDBParams:
 	}
 	if patroni.SynchronousModeStrict {
 		config.Bootstrap.DCS.SynchronousModeStrict = patroni.SynchronousModeStrict
+	}
+	if patroni.SynchronousNodeCount >= 1 {
+		config.Bootstrap.DCS.SynchronousNodeCount = patroni.SynchronousNodeCount
 	}
 
 	config.PgLocalConfiguration = make(map[string]interface{})

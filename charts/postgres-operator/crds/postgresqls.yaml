@@ -253,6 +253,8 @@ spec:
                     type: boolean
                   synchronous_mode_strict:
                     type: boolean
+                  synchronous_node_count:
+                    type: integer
                   ttl:
                     type: integer
               podAnnotations:
