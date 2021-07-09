@@ -14,7 +14,7 @@ solutions:
 * [kind](https://kind.sigs.k8s.io/) and [k3d](https://k3d.io), which allows creating multi-nodes K8s
   clusters running on Docker (requires Docker)
 
-To interact with the K8s infrastructure install it's CLI runtime [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-binary-via-curl).
+To interact with the K8s infrastructure install its CLI runtime [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/#install-kubectl-binary-via-curl).
 
 This quickstart assumes that you have started minikube or created a local kind
 cluster. Note that you can also use built-in K8s support in the Docker Desktop
