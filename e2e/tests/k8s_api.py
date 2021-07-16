@@ -243,6 +243,13 @@ class K8s:
                               stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE)
 
+    def patroni_rest(self, pod, path):
+        r = self.exec_with_kubectl(pod, "curl localhost:8008/" + path)
+        if not r.returncode == 0 or not r.stdout.decode()[0:1] == "{":
+            return None
+
+        return json.loads(r.stdout.decode())
+
     def get_patroni_state(self, pod):
         r = self.exec_with_kubectl(pod, "patronictl list -f json")
         if not r.returncode == 0 or not r.stdout.decode()[0:1] == "[":
@@ -495,6 +502,13 @@ class K8sBase:
         return subprocess.run(["./exec.sh", pod, cmd],
                               stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE)
+
+    def patroni_rest(self, pod, path):
+        r = self.exec_with_kubectl(pod, "curl localhost:8008/" + path)
+        if not r.returncode == 0 or not r.stdout.decode()[0:1] == "{":
+            return None
+
+        return json.loads(r.stdout.decode())
 
     def get_patroni_state(self, pod):
         r = self.exec_with_kubectl(pod, "patronictl list -f json")

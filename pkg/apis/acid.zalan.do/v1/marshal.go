@@ -81,7 +81,7 @@ func (ps *PostgresStatus) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		metaErr := json.Unmarshal(data, &status)
 		if metaErr != nil {
-			return fmt.Errorf("Could not parse status: %v; err %v", string(data), metaErr)
+			return fmt.Errorf("could not parse status: %v; err %v", string(data), metaErr)
 		}
 		tmp.PostgresClusterStatus = status
 	}
