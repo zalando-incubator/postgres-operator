@@ -1053,3 +1053,40 @@ func TestUpdateSecretNameConflict(t *testing.T) {
 	expectedError := fmt.Sprintf("syncing secret %s failed: error while checking for password rotation: could not update secret because of user name mismatch", "default/prepared-owner-user.acid-test-cluster.credentials")
 	assert.Contains(t, err.Error(), expectedError)
 }
+
+func TestBuildNewUsers(t *testing.T) {
+	cluster := &Cluster{
+		systemUsers: map[string]spec.PgUser{
+			constants.SuperuserKeyName: {Name: "postgres"},
+		},
+		pgUsers: map[string]spec.PgUser{
+			"alice": {Name: "alice", Origin: spec.RoleOriginTeamsAPI},
+			"foo":   {Name: "foo260927", Rotated: true, MemberOf: []string{"foo"}},
+		},
+	}
+	deletedUsers := map[string]string{"alice_deleted": "alice"}
+
+	// first attempt: only the deprecated team member role exists in the database
+	dbUsers := spec.PgUserMap{
+		"alice_deleted": {Name: "alice_deleted", Deleted: true},
+		"foo":           {Name: "foo", Parameters: map[string]string{"search_path": "data"}},
+	}
+	newUsers := cluster.buildNewUsers(dbUsers, deletedUsers)
+
+	assert.Contains(t, newUsers, "postgres")
+	assert.True(t, newUsers["alice"].Deleted, "alice should be skipped while alice_deleted is renamed back")
+	assert.Equal(t, map[string]string{"search_path": "data"}, newUsers["foo260927"].Parameters)
+	assert.NotContains(t, dbUsers, "foo", "group role of rotation user should be removed from dbUsers")
+
+	// cluster users must stay untouched so that retries start from the same state
+	assert.False(t, cluster.pgUsers["alice"].Deleted)
+	assert.Nil(t, cluster.pgUsers["foo"].Parameters)
+
+	// retry after the rename was applied: alice must be synced again
+	dbUsers = spec.PgUserMap{
+		"alice": {Name: "alice"},
+		"foo":   {Name: "foo"},
+	}
+	newUsers = cluster.buildNewUsers(dbUsers, deletedUsers)
+	assert.False(t, newUsers["alice"].Deleted, "alice should not be skipped once the role exists again")
+}
