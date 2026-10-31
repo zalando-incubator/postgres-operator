@@ -1514,6 +1514,30 @@ func TestNodeAffinity(t *testing.T) {
 	assert.Equal(t, s.Spec.Template.Spec.Affinity.NodeAffinity, nodeAff, "cluster template has correct node affinity")
 }
 
+func TestNodeAffinityReadinessLabelOrder(t *testing.T) {
+	cluster := New(Config{}, k8sutil.KubernetesClient{}, acidv1.Postgresql{}, logger, eventRecorder)
+	nodeReadinessLabel := map[string]string{
+		"lifecycle-status": "ready",
+		"nodepool":         "platform",
+		"postgres_ready":   "true",
+		"zone":             "a",
+	}
+
+	expected := []v1.NodeSelectorRequirement{
+		{Key: "lifecycle-status", Operator: v1.NodeSelectorOpIn, Values: []string{"ready"}},
+		{Key: "nodepool", Operator: v1.NodeSelectorOpIn, Values: []string{"platform"}},
+		{Key: "postgres_ready", Operator: v1.NodeSelectorOpIn, Values: []string{"true"}},
+		{Key: "zone", Operator: v1.NodeSelectorOpIn, Values: []string{"a"}},
+	}
+
+	// map iteration order is random, so an unsorted result would differ between syncs
+	for i := 0; i < 20; i++ {
+		affinity := cluster.nodeAffinity(nodeReadinessLabel, nil)
+		terms := affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
+		assert.Equal(t, expected, terms[0].MatchExpressions, "node readiness match expressions should be sorted by key")
+	}
+}
+
 func TestPodAffinity(t *testing.T) {
 	clusterName := "acid-test-cluster"
 	namespace := "default"
