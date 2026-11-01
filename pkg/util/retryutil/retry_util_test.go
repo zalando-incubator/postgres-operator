@@ -2,7 +2,9 @@ package retryutil
 
 import (
 	"errors"
+	"reflect"
 	"testing"
+	"time"
 )
 
 type mockTicker struct {
@@ -59,5 +61,41 @@ func TestRetryWorkerError(t *testing.T) {
 
 	if result != fail {
 		t.Errorf("Wrong result, expected: %#v, got: %#v", fail, result)
+	}
+}
+
+func TestRetryWithBackoffWorker(t *testing.T) {
+	fail := errors.New("Error")
+
+	tests := []struct {
+		name          string
+		succeedAfter  int
+		err           error
+		expectedSleep []time.Duration
+		expectErr     bool
+	}{
+		{"succeeds at once", 1, nil, nil, false},
+		{"interval doubles up to the max", 5, nil, []time.Duration{1, 2, 4, 5}, false},
+		{"gives up at the timeout", 100, nil, []time.Duration{1, 2, 4, 5, 5}, true},
+		{"stops on error", 100, fail, nil, true},
+	}
+
+	for _, tt := range tests {
+		var calls int
+		var slept []time.Duration
+		result := RetryWithBackoffWorker(1, 5, 20, func(d time.Duration) { slept = append(slept, d) }, func() (bool, error) {
+			calls++
+			if tt.err != nil {
+				return false, tt.err
+			}
+			return calls >= tt.succeedAfter, nil
+		})
+
+		if (result != nil) != tt.expectErr {
+			t.Errorf("%s: unexpected result %v", tt.name, result)
+		}
+		if !reflect.DeepEqual(slept, tt.expectedSleep) {
+			t.Errorf("%s: expected sleeps %v, got %v", tt.name, tt.expectedSleep, slept)
+		}
 	}
 }
