@@ -27,7 +27,8 @@ import (
 
 func (c *Controller) clusterResync(stopCh <-chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
-	ticker := time.NewTicker(c.opConfig.ResyncPeriod.Duration)
+	period := min(c.opConfig.ResyncPeriod.Duration, c.opConfig.RepairPeriod.Duration)
+	ticker := time.NewTicker(period)
 
 	for {
 		select {
