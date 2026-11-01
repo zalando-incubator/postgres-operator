@@ -8,9 +8,13 @@ import (
 	"time"
 
 	acidv1 "github.com/zalando/postgres-operator/v2/pkg/apis/acid.zalan.do/v1"
+	fakeacidv1 "github.com/zalando/postgres-operator/v2/pkg/generated/clientset/versioned/fake"
 	"github.com/zalando/postgres-operator/v2/pkg/spec"
 	"github.com/zalando/postgres-operator/v2/pkg/util"
+	"github.com/zalando/postgres-operator/v2/pkg/util/k8sutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -208,5 +212,74 @@ func TestQueueClusterEvents(t *testing.T) {
 	}
 	if got := drainQueue(); !reflect.DeepEqual(got, expected) {
 		t.Fatalf("expected queued events %v after delete, got %v", expected, got)
+	}
+}
+
+func TestClusterListAndSync(t *testing.T) {
+	healthy := acidv1.Postgresql{ObjectMeta: metav1.ObjectMeta{Name: "acid-healthy", Namespace: "default", UID: "uid-healthy"},
+		Status: acidv1.PostgresStatus{PostgresClusterStatus: acidv1.ClusterStatusRunning}}
+	failed := acidv1.Postgresql{ObjectMeta: metav1.ObjectMeta{Name: "acid-failed", Namespace: "default", UID: "uid-failed"},
+		Status: acidv1.PostgresStatus{PostgresClusterStatus: acidv1.ClusterStatusUpdateFailed}}
+	now := time.Now()
+
+	tests := []struct {
+		name          string
+		repairPeriod  time.Duration
+		sinceSync     time.Duration
+		sinceRepair   time.Duration
+		expectedTick  time.Duration
+		expectedEvent EventType
+		expectedCount int
+	}{
+		{"sync due", 5 * time.Minute, 30 * time.Minute, 5 * time.Minute, 5 * time.Minute, EventSync, 2},
+		{"sync due with tick arriving early", 5 * time.Minute, 30*time.Minute - time.Second, 5 * time.Minute, 5 * time.Minute, EventSync, 2},
+		{"repair due between syncs", 5 * time.Minute, 10 * time.Minute, 5 * time.Minute, 5 * time.Minute, EventRepair, 1},
+		{"repair due with tick arriving early", 5 * time.Minute, 10 * time.Minute, 5*time.Minute - time.Second, 5 * time.Minute, EventRepair, 1},
+		{"nothing due", 5 * time.Minute, 2 * time.Minute, 2 * time.Minute, 5 * time.Minute, "", 0},
+		{"repair disabled", 0, 10 * time.Minute, 10 * time.Minute, 30 * time.Minute, "", 0},
+		{"repair period longer than resync", time.Hour, 30 * time.Minute, 30 * time.Minute, 30 * time.Minute, EventSync, 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := NewController(&spec.ControllerConfig{}, "")
+			c.opConfig.Workers = 1
+			c.opConfig.ResyncPeriod = &metav1.Duration{Duration: 30 * time.Minute}
+			c.opConfig.RepairPeriod = &metav1.Duration{Duration: tt.repairPeriod}
+			// the list kind of the CRD is registered as "postgresqlList", which the fake object tracker cannot list
+			acidClient := fakeacidv1.NewSimpleClientset()
+			acidClient.PrependReactor("list", "postgresqls", func(k8stesting.Action) (bool, runtime.Object, error) {
+				return true, &acidv1.PostgresqlList{Items: []acidv1.Postgresql{*healthy.DeepCopy(), *failed.DeepCopy()}}, nil
+			})
+			c.KubeClient = k8sutil.KubernetesClient{PostgresqlsGetter: acidClient.AcidV1()}
+			c.clusterEventStores = []cache.Store{cache.NewStore(clusterEventKeyFunc)}
+			c.clusterEventQueues = []*cache.FIFO{cache.NewFIFO(clusterEventKeyFunc)}
+			c.lastClusterSyncTime = now.Add(-tt.sinceSync).Unix()
+			c.lastClusterRepairTime = now.Add(-tt.sinceRepair).Unix()
+
+			if tick := c.resyncTickPeriod(); tick != tt.expectedTick {
+				t.Errorf("expected tick period %v, got %v", tt.expectedTick, tick)
+			}
+			if err := c.clusterListAndSync(now); err != nil {
+				t.Fatalf("clusterListAndSync failed: %v", err)
+			}
+
+			queued := c.clusterEventStores[0].List()
+			if len(queued) != tt.expectedCount {
+				t.Fatalf("expected %d queued events, got %d", tt.expectedCount, len(queued))
+			}
+			for _, obj := range queued {
+				if e := obj.(ClusterEvent); e.EventType != tt.expectedEvent {
+					t.Errorf("expected %s event, got %s for %s", tt.expectedEvent, e.EventType, e.NewSpec.Name)
+				}
+			}
+			// the time of the tick is recorded, not the time when queueing finished
+			if tt.expectedEvent == EventSync && c.lastClusterSyncTime != now.Unix() {
+				t.Errorf("expected last sync time %d, got %d", now.Unix(), c.lastClusterSyncTime)
+			}
+			if tt.expectedEvent != "" && c.lastClusterRepairTime != now.Unix() {
+				t.Errorf("expected last repair time %d, got %d", now.Unix(), c.lastClusterRepairTime)
+			}
+		})
 	}
 }
