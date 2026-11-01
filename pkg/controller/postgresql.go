@@ -526,6 +526,18 @@ func (c *Controller) postgresqlAdd(obj interface{}) {
 func (c *Controller) postgresqlUpdate(prev, cur interface{}) {
 	pgOld := c.postgresqlCheck(prev)
 	pgNew := c.postgresqlCheck(cur)
+
+	// The cluster has just become ours: the previous manifest named a different
+	// controller, so postgresqlCheck rejected it and the block below never runs.
+	// Without this the event is dropped entirely and the cluster is only picked up
+	// by the next resync. Sync rather than update, because the Kubernetes objects
+	// may have been created by another operator and there is no old spec worth
+	// diffing against.
+	if pgOld == nil && pgNew != nil {
+		c.queueClusterEvent(nil, pgNew, EventSync)
+		return
+	}
+
 	if pgOld != nil && pgNew != nil {
 		clusterName := util.NameFromMeta(pgNew.ObjectMeta)
 

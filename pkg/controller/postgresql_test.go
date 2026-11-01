@@ -9,6 +9,7 @@ import (
 	acidv1 "github.com/zalando/postgres-operator/v2/pkg/apis/acid.zalan.do/v1"
 	"github.com/zalando/postgres-operator/v2/pkg/spec"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 var (
@@ -146,5 +147,96 @@ func TestMeetsClusterDeleteAnnotations(t *testing.T) {
 				t.Errorf("Expected error %q, got: %v", tt.error, err)
 			}
 		}
+	}
+}
+
+// newPostgresqlTestControllerWithQueues builds a controller with just enough of the
+// event machinery for queueClusterEvent to run. The real operator sets these up in
+// initController, which also reads infrastructure roles and starts the API server.
+func newPostgresqlTestControllerWithQueues() *Controller {
+	c := NewController(&spec.ControllerConfig{}, "postgresql-test")
+	c.opConfig.Workers = 1
+	keyFn := func(obj interface{}) (string, error) {
+		e, ok := obj.(ClusterEvent)
+		if !ok {
+			return "", fmt.Errorf("could not cast to cluster event")
+		}
+		return queueClusterKey(e.EventType, e.UID), nil
+	}
+	c.clusterEventStores = []cache.Store{cache.NewStore(keyFn)}
+	c.clusterEventQueues = []*cache.FIFO{cache.NewFIFO(keyFn)}
+	return c
+}
+
+func testPostgresqlOwnedBy(controller string) *acidv1.Postgresql {
+	return &acidv1.Postgresql{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "acid-test",
+			Namespace:   "default",
+			UID:         "00000000-0000-0000-0000-000000000001",
+			Annotations: map[string]string{"acid.zalan.do/controller": controller},
+		},
+	}
+}
+
+// Changing the controller annotation to this operator's ID makes postgresqlCheck reject
+// the previous manifest, so without an explicit branch the event is dropped entirely and
+// the cluster is only picked up by the next resync.
+func TestPostgresqlUpdateQueuesSyncWhenClusterIsAdopted(t *testing.T) {
+	c := newPostgresqlTestControllerWithQueues()
+
+	c.postgresqlUpdate(testPostgresqlOwnedBy("another-operator"), testPostgresqlOwnedBy("postgresql-test"))
+
+	events := c.clusterEventStores[0].List()
+	if len(events) != 1 {
+		t.Fatalf("adopting a cluster should queue exactly one event, queued %d", len(events))
+	}
+	event, ok := events[0].(ClusterEvent)
+	if !ok {
+		t.Fatalf("queued object is not a ClusterEvent: %T", events[0])
+	}
+	if event.EventType != EventSync {
+		t.Errorf("adoption should queue %q, queued %q", EventSync, event.EventType)
+	}
+	if event.OldSpec != nil {
+		t.Errorf("there is no trustworthy old spec on adoption, got %+v", event.OldSpec)
+	}
+	if event.NewSpec == nil || event.NewSpec.Name != "acid-test" {
+		t.Errorf("the new spec should be the adopted cluster, got %+v", event.NewSpec)
+	}
+}
+
+// An ordinary edit to a cluster this operator already owns must still queue an update.
+func TestPostgresqlUpdateStillQueuesUpdateForOwnedCluster(t *testing.T) {
+	c := newPostgresqlTestControllerWithQueues()
+
+	owned := testPostgresqlOwnedBy("postgresql-test")
+	edited := testPostgresqlOwnedBy("postgresql-test")
+	edited.Spec.NumberOfInstances = 3
+
+	c.postgresqlUpdate(owned, edited)
+
+	events := c.clusterEventStores[0].List()
+	if len(events) != 1 {
+		t.Fatalf("editing an owned cluster should queue exactly one event, queued %d", len(events))
+	}
+	event := events[0].(ClusterEvent)
+	if event.EventType != EventUpdate {
+		t.Errorf("an owned edit should queue %q, queued %q", EventUpdate, event.EventType)
+	}
+	if event.OldSpec == nil {
+		t.Error("an owned edit has a usable old spec and should carry it")
+	}
+}
+
+// Losing ownership is deliberately left alone: stopping management is a different
+// decision from starting it, and this operator cannot know the new owner is ready.
+func TestPostgresqlUpdateQueuesNothingWhenOwnershipIsLost(t *testing.T) {
+	c := newPostgresqlTestControllerWithQueues()
+
+	c.postgresqlUpdate(testPostgresqlOwnedBy("postgresql-test"), testPostgresqlOwnedBy("another-operator"))
+
+	if events := c.clusterEventStores[0].List(); len(events) != 0 {
+		t.Errorf("losing ownership should queue nothing, queued %d", len(events))
 	}
 }
