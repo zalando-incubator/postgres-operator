@@ -117,40 +117,56 @@ func (strategy DefaultUserSyncStrategy) ProduceSyncRequests(dbUsers spec.PgUserM
 	return reqs
 }
 
+// syncErrors keeps the errors of the failed sync requests, so that callers can inspect them,
+// e.g. to find out if the database was read-only.
+type syncErrors []error
+
+func (e syncErrors) Error() string {
+	msgs := make([]string, 0, len(e))
+	for _, err := range e {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, `', '`)
+}
+
+func (e syncErrors) Unwrap() []error {
+	return e
+}
+
 // ExecuteSyncRequests makes actual database changes from the requests passed in its arguments.
 func (strategy DefaultUserSyncStrategy) ExecuteSyncRequests(requests []spec.PgSyncUserRequest, db *sql.DB) error {
 	var reqretries []spec.PgSyncUserRequest
-	errors := make([]string, 0)
+	var errs syncErrors
 	for _, request := range requests {
 		switch request.Kind {
 		case spec.PGSyncUserAdd:
 			if err := strategy.createPgUser(request.User, db); err != nil {
 				reqretries = append(reqretries, request)
-				errors = append(errors, fmt.Sprintf("could not create user %q: %v", request.User.Name, err))
+				errs = append(errs, fmt.Errorf("could not create user %q: %w", request.User.Name, err))
 			}
 		case spec.PGsyncUserAlter:
 			if err := strategy.alterPgUser(request.User, db); err != nil {
 				reqretries = append(reqretries, request)
-				errors = append(errors, fmt.Sprintf("could not alter user %q: %v", request.User.Name, err))
+				errs = append(errs, fmt.Errorf("could not alter user %q: %w", request.User.Name, err))
 				// XXX: we do not allow additional owner roles to be members of database owners
 				// if ALTER fails it could be because of the wrong memberhip (check #1862 for details)
 				// so in any case try to revoke the database owner from the additional owner roles
 				// the initial ALTER statement will be retried once and should work then
 				if request.User.IsDbOwner && len(strategy.AdditionalOwnerRoles) > 0 {
 					if err := resolveOwnerMembership(request.User, strategy.AdditionalOwnerRoles, db); err != nil {
-						errors = append(errors, fmt.Sprintf("could not resolve owner membership for %q: %v", request.User.Name, err))
+						errs = append(errs, fmt.Errorf("could not resolve owner membership for %q: %w", request.User.Name, err))
 					}
 				}
 			}
 		case spec.PGSyncAlterSet:
 			if err := strategy.alterPgUserSet(request.User, db); err != nil {
 				reqretries = append(reqretries, request)
-				errors = append(errors, fmt.Sprintf("could not set custom user %q parameters: %v", request.User.Name, err))
+				errs = append(errs, fmt.Errorf("could not set custom user %q parameters: %w", request.User.Name, err))
 			}
 		case spec.PGSyncUserRename:
 			if err := strategy.alterPgUserRename(request.User, db); err != nil {
 				reqretries = append(reqretries, request)
-				errors = append(errors, fmt.Sprintf("could not rename custom user %q: %v", request.User.Name, err))
+				errs = append(errs, fmt.Errorf("could not rename custom user %q: %w", request.User.Name, err))
 			}
 		default:
 			return fmt.Errorf("unrecognized operation: %v", request.Kind)
@@ -166,7 +182,7 @@ func (strategy DefaultUserSyncStrategy) ExecuteSyncRequests(requests []spec.PgSy
 				return err
 			}
 		} else {
-			return fmt.Errorf("could not execute sync requests for users: %v", strings.Join(errors, `', '`))
+			return fmt.Errorf("could not execute sync requests for users: %w", errs)
 		}
 	}
 
@@ -241,7 +257,7 @@ func (strategy DefaultUserSyncStrategy) createPgUser(user spec.PgUser, db *sql.D
 
 	if len(user.Parameters) > 0 {
 		if err := strategy.alterPgUserSet(user, db); err != nil {
-			return fmt.Errorf("incomplete setup for user %s: %v", user.Name, err)
+			return fmt.Errorf("incomplete setup for user %s: %w", user.Name, err)
 		}
 	}
 

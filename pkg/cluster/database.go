@@ -3,13 +3,17 @@ package cluster
 import (
 	"bytes"
 	"database/sql"
+	"database/sql/driver"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"text/template"
 	"time"
 
 	"github.com/lib/pq"
+	"github.com/lib/pq/pqerror"
 
 	"github.com/zalando/postgres-operator/v2/pkg/spec"
 	"github.com/zalando/postgres-operator/v2/pkg/util/constants"
@@ -33,6 +37,8 @@ const (
 	        JOIN unnest($1::text[]) AS u(name) ON r.rolname LIKE u.name || '%'
 			AND right(r.rolname, 6) ~ '^[0-9\.]+$'
 			ORDER BY 1;`
+
+	isInRecoverySQL = `SELECT pg_catalog.pg_is_in_recovery();`
 
 	getDatabasesSQL = `SELECT datname, pg_get_userbyid(datdba) AS owner FROM pg_database;`
 	getSchemasSQL   = `SELECT n.nspname AS dbschema FROM pg_catalog.pg_namespace n
@@ -199,12 +205,36 @@ func (c *Cluster) closeDbConn() (err error) {
 	return nil
 }
 
+func (c *Cluster) isInRecovery() (bool, error) {
+	var inRecovery bool
+	if err := c.pgDb.QueryRow(isInRecoverySQL).Scan(&inRecovery); err != nil {
+		return false, fmt.Errorf("could not check if database is in recovery: %w", err)
+	}
+	return inRecovery, nil
+}
+
+// isTransientDbError tells if the error is caused by the database being temporarily unavailable
+// or read-only, e.g. while it starts up, shuts down or is still in recovery after a restart or failover.
+func isTransientDbError(err error) bool {
+	if pqErr := pq.As(err); pqErr != nil {
+		switch pqErr.Code {
+		case pqerror.ReadOnlySQLTransaction, pqerror.AdminShutdown, pqerror.CrashShutdown, pqerror.CannotConnectNow:
+			return true
+		}
+		return pqErr.Code.Class() == pqerror.ClassConnectionException
+	}
+
+	var netErr net.Error
+	return errors.Is(err, driver.ErrBadConn) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.As(err, &netErr)
+}
+
 func (c *Cluster) readPgUsersFromDatabase(userNames []string) (users spec.PgUserMap, err error) {
 	c.setProcessName("reading users from the database")
 	var rows *sql.Rows
 	users = make(spec.PgUserMap)
 	if rows, err = c.pgDb.Query(getUserSQL, pq.Array(userNames)); err != nil {
-		return nil, fmt.Errorf("error when querying users: %v", err)
+		return nil, fmt.Errorf("error when querying users: %w", err)
 	}
 	defer func() {
 		if err2 := rows.Close(); err2 != nil {
@@ -226,7 +256,7 @@ func (c *Cluster) readPgUsersFromDatabase(userNames []string) (users spec.PgUser
 		err := rows.Scan(&rolname, &rolpassword, &rolsuper, &rolinherit,
 			&rolcreaterole, &rolcreatedb, &rolcanlogin, pq.Array(&roloptions), pq.Array(&memberof))
 		if err != nil {
-			return nil, fmt.Errorf("error when processing user rows: %v", err)
+			return nil, fmt.Errorf("error when processing user rows: %w", err)
 		}
 		flags := makeUserFlags(rolsuper, rolinherit, rolcreaterole, rolcreatedb, rolcanlogin)
 		// XXX: the code assumes the password we get from pg_authid is always MD5
