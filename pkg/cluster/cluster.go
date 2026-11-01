@@ -1382,8 +1382,10 @@ func (c *Cluster) processPodEvent(obj interface{}, isInInitialList bool) error {
 		select {
 		case subscriber <- event:
 		default:
-			// ending up here when there is no receiver on the channel (i.e. waitForPodLabel finished)
+			// ending up here when the subscriber's buffer is full, i.e. the subscriber finished waiting
+			// but has not unregistered yet or is not consuming events anymore
 			// avoids blocking channel: https://gobyexample.com/non-blocking-channel-operations
+			c.logger.Warningf("dropping %s event of pod %q: subscriber is not receiving events", event.EventType, event.PodName)
 		}
 	}
 	// hold lock for the time of processing the event to avoid race condition
@@ -1912,7 +1914,9 @@ func (c *Cluster) Switchover(curMaster *v1.Pod, candidate spec.NamespacedName, s
 		}
 		c.logger.Debugf("successfully switched over from %q to %q", curMaster.Name, candidate)
 		c.eventRecorder.Eventf(c.GetReference(), v1.EventTypeNormal, "Switchover", "Successfully switched over from %q to %q", curMaster.Name, candidate)
-		_, err = c.waitForPodLabel(ch, stopCh, nil)
+		// pod events of the candidate are buffered since subscribing, so skip the ones still labeled as replica
+		master := Master
+		_, err = c.waitForPodLabel(ch, stopCh, &master)
 		if err != nil {
 			err = fmt.Errorf("could not get master pod label: %v", err)
 		}

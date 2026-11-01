@@ -20,6 +20,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
@@ -539,5 +540,101 @@ func TestAllPodsRunning(t *testing.T) {
 				t.Errorf("allPodsRunning() = %v, expected %v", result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestPodEventsBufferedForSubscriber(t *testing.T) {
+	podName := spec.NamespacedName{Namespace: "default", Name: "acid-test-cluster-0"}
+	oldPod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: podName.Name, Namespace: podName.Namespace, UID: "old",
+		Labels: map[string]string{"spilo-role": "master"}}}
+	newPod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: podName.Name, Namespace: podName.Namespace, UID: "new"}}
+	labeledPod := newPod.DeepCopy()
+	labeledPod.Labels = map[string]string{"spilo-role": "master"}
+
+	opConfig := config.Config{}
+	opConfig.PodRoleLabel = "spilo-role"
+	opConfig.PodDeletionWaitTimeout = &metav1.Duration{Duration: time.Second}
+	opConfig.PodLabelWaitTimeout = &metav1.Duration{Duration: time.Second}
+	c := New(Config{OpConfig: opConfig}, k8sutil.KubernetesClient{},
+		acidv1.Postgresql{ObjectMeta: metav1.ObjectMeta{Name: "acid-test-cluster", Namespace: podName.Namespace}}, logger, record.NewFakeRecorder(2))
+
+	ch := c.registerPodSubscriber(podName)
+	defer c.unregisterPodSubscriber(podName)
+
+	// events delivered back to back while nobody is waiting on the channel yet must not get lost
+	for _, event := range []PodEvent{
+		{PodName: types.NamespacedName(podName), EventType: PodEventUpdate, PrevPod: oldPod, CurPod: oldPod},
+		{PodName: types.NamespacedName(podName), EventType: PodEventDelete, CurPod: oldPod},
+		{PodName: types.NamespacedName(podName), EventType: PodEventAdd, CurPod: newPod},
+		{PodName: types.NamespacedName(podName), EventType: PodEventUpdate, PrevPod: newPod, CurPod: labeledPod},
+	} {
+		if err := c.processPodEvent(event, false); err != nil {
+			t.Fatalf("could not process pod event: %v", err)
+		}
+	}
+
+	if err := c.waitForPodDeletion(ch); err != nil {
+		t.Fatalf("pod deletion not observed: %v", err)
+	}
+	pod, err := c.waitForPodLabel(ch, make(chan struct{}), nil)
+	if err != nil {
+		t.Fatalf("pod label not observed: %v", err)
+	}
+	if pod.UID != "new" {
+		t.Errorf("expected the new pod, got pod with uid %q", pod.UID)
+	}
+}
+
+func TestIsPodGone(t *testing.T) {
+	oldPod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{UID: "old"}}
+	newPod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{UID: "new"}}
+
+	for _, tt := range []struct {
+		name     string
+		event    PodEvent
+		expected bool
+	}{
+		{"delete", PodEvent{EventType: PodEventDelete, CurPod: oldPod}, true},
+		{"update of the same pod", PodEvent{EventType: PodEventUpdate, PrevPod: oldPod, CurPod: oldPod}, false},
+		{"update replacing the pod", PodEvent{EventType: PodEventUpdate, PrevPod: oldPod, CurPod: newPod}, true},
+		{"add", PodEvent{EventType: PodEventAdd, CurPod: newPod}, false},
+	} {
+		if got := isPodGone(tt.event); got != tt.expected {
+			t.Errorf("%s: expected %v, got %v", tt.name, tt.expected, got)
+		}
+	}
+}
+
+func TestWaitForMasterLabelSkipsReplicaEvents(t *testing.T) {
+	podName := spec.NamespacedName{Namespace: "default", Name: "acid-test-cluster-1"}
+	replicaPod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: podName.Name, Namespace: podName.Namespace,
+		Labels: map[string]string{"spilo-role": "replica"}}}
+	masterPod := replicaPod.DeepCopy()
+	masterPod.Labels["spilo-role"] = "master"
+
+	opConfig := config.Config{}
+	opConfig.PodRoleLabel = "spilo-role"
+	opConfig.PodLabelWaitTimeout = &metav1.Duration{Duration: time.Second}
+	c := New(Config{OpConfig: opConfig}, k8sutil.KubernetesClient{},
+		acidv1.Postgresql{ObjectMeta: metav1.ObjectMeta{Name: "acid-test-cluster", Namespace: podName.Namespace}}, logger, record.NewFakeRecorder(2))
+
+	ch := c.registerPodSubscriber(podName)
+	defer c.unregisterPodSubscriber(podName)
+
+	// e.g. Patroni updating the member status annotation of the candidate before it gets promoted
+	for _, pod := range []*v1.Pod{replicaPod, masterPod} {
+		event := PodEvent{PodName: types.NamespacedName(podName), EventType: PodEventUpdate, PrevPod: replicaPod, CurPod: pod}
+		if err := c.processPodEvent(event, false); err != nil {
+			t.Fatalf("could not process pod event: %v", err)
+		}
+	}
+
+	master := Master
+	pod, err := c.waitForPodLabel(ch, make(chan struct{}), &master)
+	if err != nil {
+		t.Fatalf("master label not observed: %v", err)
+	}
+	if role := PostgresRole(pod.Labels["spilo-role"]); role != Master {
+		t.Errorf("expected pod labeled %q, got %q", Master, role)
 	}
 }
