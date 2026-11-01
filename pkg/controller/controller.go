@@ -52,6 +52,7 @@ type Controller struct {
 	controllerID     string
 	curWorkerID      uint32 //initialized with 0
 	curWorkerCluster sync.Map
+	clusterWorkersMu sync.Mutex
 	clusterWorkers   map[spec.NamespacedName]uint32
 	clustersMu       sync.RWMutex
 	clusters         map[spec.NamespacedName]*cluster.Cluster
@@ -367,15 +368,8 @@ func (c *Controller) initController() {
 	c.clusterEventQueues = make([]*cache.FIFO, c.opConfig.Workers)
 	c.workerLogs = make(map[uint32]ringlog.RingLogger, c.opConfig.Workers)
 	for i := range c.clusterEventQueues {
-		keyFn := func(obj interface{}) (string, error) {
-			e, ok := obj.(ClusterEvent)
-			if !ok {
-				return "", fmt.Errorf("could not cast to cluster event")
-			}
-			return queueClusterKey(e.EventType, e.UID), nil
-		}
-		c.clusterEventStores[i] = cache.NewStore(keyFn)
-		c.clusterEventQueues[i] = cache.NewFIFO(keyFn)
+		c.clusterEventStores[i] = cache.NewStore(clusterEventKeyFunc)
+		c.clusterEventQueues[i] = cache.NewFIFO(clusterEventKeyFunc)
 	}
 
 	c.apiserver = apiserver.New(c, c.opConfig.APIPort, c.logger.Logger)
@@ -481,6 +475,24 @@ func (c *Controller) runPostgresTeamInformer(stopCh <-chan struct{}, wg *sync.Wa
 
 func queueClusterKey(eventType EventType, uid types.UID) string {
 	return fmt.Sprintf("%s-%s", eventType, uid)
+}
+
+// clusterEventKey returns the queue key of a cluster event. Events with the same key replace each other
+// while waiting in the queue. Update events must not be merged, because the cluster update is based on
+// the diff between their old and new spec, so their key also contains the resource version of the new spec.
+func clusterEventKey(e ClusterEvent) string {
+	if e.EventType == EventUpdate && e.NewSpec != nil {
+		return fmt.Sprintf("%s-%s", queueClusterKey(e.EventType, e.UID), e.NewSpec.ResourceVersion)
+	}
+	return queueClusterKey(e.EventType, e.UID)
+}
+
+func clusterEventKeyFunc(obj interface{}) (string, error) {
+	e, ok := obj.(ClusterEvent)
+	if !ok {
+		return "", fmt.Errorf("could not cast to cluster event")
+	}
+	return clusterEventKey(e), nil
 }
 
 func (c *Controller) kubeNodesInformer(stopCh <-chan struct{}, wg *sync.WaitGroup) {

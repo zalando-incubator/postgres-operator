@@ -363,16 +363,12 @@ func (c *Controller) processClusterEventsQueue(idx int, stopCh <-chan struct{}, 
 	}()
 
 	for {
-		_, err := (*c.clusterEventQueues[idx]).Pop(cache.PopProcessFunc(func(obj interface{}, isInitialList bool) error {
-			event, ok := obj.(ClusterEvent)
-			if !ok {
-				c.logger.Errorf("could not cast to cluster event")
-				return nil // skip event to keep processing
-			}
-			c.processEvent(event, isInitialList)
-			if err := c.clusterEventStores[idx].Delete(obj); err != nil {
-				c.logger.Errorf("failed to delete key from lookup store: %v", err)
-			}
+		var isInitialList bool
+		// Pop holds the queue lock while calling the process function, so the event is only taken from
+		// the queue there and processed afterwards. Otherwise queueClusterEvent would block until the
+		// worker finishes, stalling the informer handler and with it the events of all other clusters.
+		obj, err := (*c.clusterEventQueues[idx]).Pop(cache.PopProcessFunc(func(_ interface{}, initialList bool) error {
+			isInitialList = initialList
 			return nil
 		}))
 		if err != nil {
@@ -382,6 +378,15 @@ func (c *Controller) processClusterEventsQueue(idx int, stopCh <-chan struct{}, 
 			c.logger.Errorf("error when processing cluster events queue: %v", err)
 			continue
 		}
+		event, ok := obj.(ClusterEvent)
+		if !ok {
+			c.logger.Errorf("could not cast to cluster event")
+			continue // skip event to keep processing
+		}
+		if err := c.clusterEventStores[idx].Delete(obj); err != nil {
+			c.logger.Errorf("failed to delete key from lookup store: %v", err)
+		}
+		c.processEvent(event, isInitialList)
 	}
 }
 
@@ -489,18 +494,14 @@ func (c *Controller) queueClusterEvent(informerOldSpec, informerNewSpec *acidv1.
 		return
 	}
 	// A delete event discards all prior requests for that cluster.
-	for _, evType := range []EventType{EventAdd, EventSync, EventUpdate, EventRepair} {
-		obj, exists, err := c.clusterEventStores[workerID].GetByKey(queueClusterKey(evType, uid))
-		if err != nil {
-			lg.Warningf("could not get event from the lookup store: %v", err)
+	for _, obj := range c.clusterEventStores[workerID].List() {
+		queuedEvent, ok := obj.(ClusterEvent)
+		if !ok || queuedEvent.UID != uid || queuedEvent.EventType == EventDelete {
 			continue
 		}
+		evType := queuedEvent.EventType
 
-		if !exists {
-			continue
-		}
-
-		err = (*c.clusterEventQueues[workerID]).Delete(obj)
+		err := (*c.clusterEventQueues[workerID]).Delete(obj)
 		if err != nil {
 			lg.Warningf("could not delete event from the queue: %v", err)
 		} else {

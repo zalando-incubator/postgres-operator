@@ -35,6 +35,10 @@ func (c *Controller) makeClusterConfig() cluster.Config {
 }
 
 func (c *Controller) clusterWorkerID(clusterName spec.NamespacedName) uint32 {
+	// called from the informer handlers, the periodic resync and the API server
+	c.clusterWorkersMu.Lock()
+	defer c.clusterWorkersMu.Unlock()
+
 	workerID, ok := c.clusterWorkers[clusterName]
 	if ok {
 		return workerID

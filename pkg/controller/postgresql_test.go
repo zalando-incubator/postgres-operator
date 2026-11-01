@@ -3,12 +3,15 @@ package controller
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"testing"
 	"time"
 
 	acidv1 "github.com/zalando/postgres-operator/v2/pkg/apis/acid.zalan.do/v1"
 	"github.com/zalando/postgres-operator/v2/pkg/spec"
+	"github.com/zalando/postgres-operator/v2/pkg/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 var (
@@ -146,5 +149,64 @@ func TestMeetsClusterDeleteAnnotations(t *testing.T) {
 				t.Errorf("Expected error %q, got: %v", tt.error, err)
 			}
 		}
+	}
+}
+
+func TestQueueClusterEvents(t *testing.T) {
+	c := NewController(&spec.ControllerConfig{}, "queue-test")
+	c.opConfig.Workers = 1
+	c.opConfig.EnableOwnerReferences = util.True() // allows deletion without annotations
+	c.clusterEventStores = []cache.Store{cache.NewStore(clusterEventKeyFunc)}
+	c.clusterEventQueues = []*cache.FIFO{cache.NewFIFO(clusterEventKeyFunc)}
+
+	pgWithVersion := func(resourceVersion string) *acidv1.Postgresql {
+		return &acidv1.Postgresql{ObjectMeta: metav1.ObjectMeta{
+			Name: "acid-test", Namespace: "default", UID: "uid-1", ResourceVersion: resourceVersion}}
+	}
+	sorted := func(types []EventType) []EventType {
+		sort.Slice(types, func(i, j int) bool { return types[i] < types[j] })
+		return types
+	}
+	stored := func() []EventType {
+		var types []EventType
+		for _, obj := range c.clusterEventStores[0].List() {
+			types = append(types, obj.(ClusterEvent).EventType)
+		}
+		return sorted(types)
+	}
+	// a closed queue still hands out the remaining events
+	drainQueue := func() []EventType {
+		var types []EventType
+		c.clusterEventQueues[0].Close()
+		for {
+			obj, err := c.clusterEventQueues[0].Pop(func(interface{}, bool) error { return nil })
+			if err != nil {
+				return sorted(types)
+			}
+			types = append(types, obj.(ClusterEvent).EventType)
+		}
+	}
+
+	// updates are not merged, because each one is applied based on its own old and new spec
+	c.queueClusterEvent(pgWithVersion("1"), pgWithVersion("2"), EventUpdate)
+	c.queueClusterEvent(pgWithVersion("2"), pgWithVersion("3"), EventUpdate)
+	// syncs replace each other
+	c.queueClusterEvent(nil, pgWithVersion("3"), EventSync)
+	c.queueClusterEvent(nil, pgWithVersion("3"), EventSync)
+
+	expected := []EventType{EventSync, EventUpdate, EventUpdate}
+	if got := stored(); !reflect.DeepEqual(got, expected) {
+		t.Fatalf("expected pending events %v, got %v", expected, got)
+	}
+
+	// a delete discards all pending events of the cluster
+	c.queueClusterEvent(pgWithVersion("3"), nil, EventDelete)
+
+	expected = []EventType{EventDelete}
+	if got := stored(); !reflect.DeepEqual(got, expected) {
+		t.Fatalf("expected pending events %v after delete, got %v", expected, got)
+	}
+	if got := drainQueue(); !reflect.DeepEqual(got, expected) {
+		t.Fatalf("expected queued events %v after delete, got %v", expected, got)
 	}
 }
