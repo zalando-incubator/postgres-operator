@@ -51,16 +51,44 @@ function az_upload {
 }
 
 function aws_delete_objects {
-    args=(
+    local keys=("$@")
+    local batch=()
+    local batch_size=1000
+
+    for ((i=0; i<${#keys[@]}; i++)); do
+        batch+=("${keys[$i]}")
+        if ((${#batch[@]} >= batch_size)); then
+            aws_delete_objects_batch "${batch[@]}"
+            batch=()
+        fi
+    done
+    if ((${#batch[@]} > 0)); then
+        aws_delete_objects_batch "${batch[@]}"
+    fi
+}
+
+function aws_delete_objects_batch {
+    local keys=("$@")
+    local keys_json=$(printf '%s\n' "${keys[@]}" | jq -R . | jq -s .)
+    local objects_json=$(jq -n --argjson keys "$keys_json" '{Objects: [$keys[] | {Key: .}], Quiet: true}')
+
+    local args=(
       "--bucket=$LOGICAL_BACKUP_S3_BUCKET"
     )
 
     [[ ! -z "$LOGICAL_BACKUP_S3_ENDPOINT" ]] && args+=("--endpoint-url=$LOGICAL_BACKUP_S3_ENDPOINT")
     [[ ! -z "$LOGICAL_BACKUP_S3_REGION" ]] && args+=("--region=$LOGICAL_BACKUP_S3_REGION")
 
-    aws s3api delete-objects "${args[@]}" --delete Objects=["$(printf {Key=%q}, "$@")"],Quiet=true
+    local result
+    result=$(aws s3api delete-objects "${args[@]}" --delete "$objects_json" 2>&1)
+    local exit_code=$?
+
+    if [[ $exit_code -ne 0 ]]; then
+        echo "WARNING: failed to delete some objects: $result"
+    fi
 }
 export -f aws_delete_objects
+export -f aws_delete_objects_batch
 
 function aws_delete_outdated {
     if [[ -z "$LOGICAL_BACKUP_S3_RETENTION_TIME" ]] ; then
@@ -68,15 +96,12 @@ function aws_delete_outdated {
         return 0
     fi
 
-    # define cutoff date for outdated backups (day precision)
-    cutoff_date=$(date -d "$LOGICAL_BACKUP_S3_RETENTION_TIME ago" +%F)
+    cutoff_timestamp=$(date -d "$LOGICAL_BACKUP_S3_RETENTION_TIME ago" +%s)
 
-    # mimic bucket setup from Spilo
     prefix=$LOGICAL_BACKUP_S3_BUCKET_PREFIX"/"$SCOPE$LOGICAL_BACKUP_S3_BUCKET_SCOPE_SUFFIX"/logical_backups/"
 
     args=(
-      "--no-paginate"
-      "--output=text"
+      "--output=json"
       "--prefix=$prefix"
       "--bucket=$LOGICAL_BACKUP_S3_BUCKET"
     )
@@ -84,21 +109,53 @@ function aws_delete_outdated {
     [[ ! -z "$LOGICAL_BACKUP_S3_ENDPOINT" ]] && args+=("--endpoint-url=$LOGICAL_BACKUP_S3_ENDPOINT")
     [[ ! -z "$LOGICAL_BACKUP_S3_REGION" ]] && args+=("--region=$LOGICAL_BACKUP_S3_REGION")
 
-    # list objects older than the cutoff date
-    aws s3api list-objects "${args[@]}" --query="Contents[?LastModified<='$cutoff_date'].[Key]" > /tmp/outdated-backups
+    : > /tmp/outdated-backups
 
-    # spare the last backup
-    sed -i '$d' /tmp/outdated-backups
+    local continuation_token=""
+    while true; do
+        local result
+        if [[ -n "$continuation_token" ]]; then
+            result=$(aws s3api list-objects-v2 "${args[@]}" --continuation-token "$continuation_token" 2>/dev/null)
+        else
+            result=$(aws s3api list-objects-v2 "${args[@]}" 2>/dev/null)
+        fi
+
+        if [[ -z "$result" ]] || [[ "$result" == "{}" ]]; then
+            break
+        fi
+
+        echo "$result" | jq -r '.Contents[] | select(.LastModified != null) | "\(.Key)\n\(.LastModified)"' | \
+        while read -r key && read -r last_modified; do
+            set +e
+            file_timestamp=$(date -d "$last_modified" +%s 2>/dev/null)
+            set -e
+            if [[ -n "$file_timestamp" ]] && [[ "$file_timestamp" -lt "$cutoff_timestamp" ]]; then
+                echo "$key" >> /tmp/outdated-backups
+            fi
+        done
+
+        local is_truncated=$(echo "$result" | jq -r '.IsTruncated')
+        if [[ "$is_truncated" != "true" ]]; then
+            break
+        fi
+
+        continuation_token=$(echo "$result" | jq -r '.NextContinuationToken // empty')
+        if [[ -z "$continuation_token" ]]; then
+            break
+        fi
+    done
 
     count=$(wc -l < /tmp/outdated-backups)
     if [[ $count == 0 ]] ; then
       echo "no outdated backups to delete"
       return 0
     fi
-    echo "deleting $count outdated backups created before $cutoff_date"
+    echo "deleting $count outdated backups older than $LOGICAL_BACKUP_S3_RETENTION_TIME"
 
-    # deleted outdated files in batches with 100 at a time
-    tr '\n' '\0'  < /tmp/outdated-backups | xargs -0 -P1 -n100 bash -c 'aws_delete_objects "$@"' _
+    mapfile -t keys_array < /tmp/outdated-backups
+    aws_delete_objects "${keys_array[@]}"
+
+    echo "cleanup completed"
 }
 
 function aws_upload {
@@ -111,12 +168,12 @@ function aws_upload {
 
     args=()
 
-    [[ ! -z "$EXPECTED_SIZE" ]] && args+=("--expected-size=$EXPECTED_SIZE")
+    [[ "$EXPECTED_SIZE" -gt 0 ]] && args+=("--expected-size=$EXPECTED_SIZE")
     [[ ! -z "$LOGICAL_BACKUP_S3_ENDPOINT" ]] && args+=("--endpoint-url=$LOGICAL_BACKUP_S3_ENDPOINT")
     [[ ! -z "$LOGICAL_BACKUP_S3_REGION" ]] && args+=("--region=$LOGICAL_BACKUP_S3_REGION")
     [[ ! -z "$LOGICAL_BACKUP_S3_SSE" ]] && args+=("--sse=$LOGICAL_BACKUP_S3_SSE")
 
-    aws s3 cp - "$PATH_TO_BACKUP" "${args[@]//\'/}"
+    aws s3 cp - "$PATH_TO_BACKUP" "${args[@]}"
 }
 
 function gcs_upload {
@@ -136,7 +193,7 @@ function gcs_upload {
 	    GSUTIL_OPTIONS[1]="GoogleCompute:service_account=default"
     fi
 
-    gsutil ${GSUTIL_OPTIONS[@]} cp - "$PATH_TO_BACKUP"
+    gsutil "${GSUTIL_OPTIONS[@]}" cp - "$PATH_TO_BACKUP"
 }
 
 function upload {
