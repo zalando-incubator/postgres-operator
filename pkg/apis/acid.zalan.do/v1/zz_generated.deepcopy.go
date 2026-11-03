@@ -312,6 +312,11 @@ func (in *KubernetesMetaConfiguration) DeepCopyInto(out *KubernetesMetaConfigura
 		*out = new(bool)
 		**out = **in
 	}
+	if in.RollingUpdateMinReadyTime != nil {
+		in, out := &in.RollingUpdateMinReadyTime, &out.RollingUpdateMinReadyTime
+		*out = new(metav1.Duration)
+		**out = **in
+	}
 	return
 }
 

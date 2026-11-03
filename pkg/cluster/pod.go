@@ -420,6 +420,59 @@ func podIsNotRunning(pod *v1.Pod) bool {
 	return false
 }
 
+// podIsAvailable returns true if the pod has been Ready for at least minReadyTime.
+// The Ready condition transitions whenever a container fails, which resets the time.
+func podIsAvailable(pod *v1.Pod, minReadyTime time.Duration) bool {
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == v1.PodReady {
+			return condition.Status == v1.ConditionTrue && time.Since(condition.LastTransitionTime.Time) >= minReadyTime
+		}
+	}
+	return false
+}
+
+// waitForPodAvailable waits until the pod has been Ready for the configured min ready time.
+// It fails as soon as one of the pod's containers has restarted, because a crashlooping
+// container without readiness probe is reported as ready for a moment after every restart.
+func (c *Cluster) waitForPodAvailable(podName spec.NamespacedName) error {
+	var restartErr error
+	minReadyTime := c.OpConfig.RollingUpdateMinReadyTime.Duration
+	err := retryutil.Retry(c.OpConfig.ResourceCheckInterval.Duration, c.OpConfig.ResourceCheckTimeout.Duration,
+		func() (bool, error) {
+			pod, err := c.KubeClient.Pods(podName.Namespace).Get(context.TODO(), podName.Name, metav1.GetOptions{})
+			if err != nil {
+				c.logger.Warningf("could not get pod %q: %v", podName, err)
+				return false, nil
+			}
+			for _, cs := range pod.Status.ContainerStatuses {
+				if cs.RestartCount > 0 {
+					restartErr = fmt.Errorf("container %q has restarted %d time(s)", cs.Name, cs.RestartCount)
+					return false, restartErr
+				}
+			}
+			return podIsAvailable(pod, minReadyTime), nil
+		})
+	if restartErr != nil {
+		return restartErr
+	}
+	if err != nil {
+		return fmt.Errorf("pod did not become available within %v (ready for at least %v)", c.OpConfig.ResourceCheckTimeout.Duration, minReadyTime)
+	}
+	return nil
+}
+
+// notAvailableRotatedPods returns the names of pods that no longer need a rolling update
+// but have not been ready for the configured min ready time.
+func (c *Cluster) notAvailableRotatedPods(pods []v1.Pod) []string {
+	notAvailablePods := make([]string, 0)
+	for i := range pods {
+		if c.getRollingUpdateAnnotationFromPod(&pods[i]) == "" && !podIsAvailable(&pods[i], c.OpConfig.RollingUpdateMinReadyTime.Duration) {
+			notAvailablePods = append(notAvailablePods, pods[i].Name)
+		}
+	}
+	return notAvailablePods
+}
+
 // allPodsRunning returns true only if every pod in the list is in a healthy running state.
 func (c *Cluster) allPodsRunning(pods []v1.Pod) bool {
 	for i := range pods {
@@ -462,6 +515,19 @@ func (c *Cluster) recreatePod(podName spec.NamespacedName) (*v1.Pod, error) {
 	return pod, nil
 }
 
+// recreatePodForRollingUpdate recreates the pod and, if enable_rolling_update_readiness_check is set,
+// waits until it is available, so that a broken pod stops the rolling update.
+func (c *Cluster) recreatePodForRollingUpdate(podName spec.NamespacedName) (*v1.Pod, error) {
+	pod, err := c.recreatePod(podName)
+	if err != nil || !c.OpConfig.EnableRollingUpdateReadinessCheck {
+		return pod, err
+	}
+	if err := c.waitForPodAvailable(podName); err != nil {
+		return nil, fmt.Errorf("stopping rolling update: %v", err)
+	}
+	return pod, nil
+}
+
 func (c *Cluster) recreatePods(pods []v1.Pod, switchoverCandidates []spec.NamespacedName) error {
 	c.setProcessName("starting to recreate pods")
 	c.logger.Infof("there are %d pods in the cluster to recreate", len(pods))
@@ -480,7 +546,7 @@ func (c *Cluster) recreatePods(pods []v1.Pod, switchoverCandidates []spec.Namesp
 		}
 
 		podName := util.NameFromMeta(pods[i].ObjectMeta)
-		newPod, err := c.recreatePod(podName)
+		newPod, err := c.recreatePodForRollingUpdate(podName)
 		if err != nil {
 			return fmt.Errorf("could not recreate replica pod %q: %v", util.NameFromMeta(pod.ObjectMeta), err)
 		}
@@ -516,7 +582,7 @@ func (c *Cluster) recreatePods(pods []v1.Pod, switchoverCandidates []spec.Namesp
 		}
 		c.logger.Infof("recreating old master pod %q", util.NameFromMeta(masterPod.ObjectMeta))
 
-		if _, err := c.recreatePod(util.NameFromMeta(masterPod.ObjectMeta)); err != nil {
+		if _, err := c.recreatePodForRollingUpdate(util.NameFromMeta(masterPod.ObjectMeta)); err != nil {
 			return fmt.Errorf("could not recreate old master pod %q: %v", util.NameFromMeta(masterPod.ObjectMeta), err)
 		}
 	}

@@ -127,6 +127,8 @@ func (c *Controller) importConfigurationFromCRD(fromCRD *acidv1.OperatorConfigur
 	result.EnableSecretsDeletion = util.CoalesceBool(fromCRD.Kubernetes.EnableSecretsDeletion, util.True())
 	result.EnablePersistentVolumeClaimDeletion = util.CoalesceBool(fromCRD.Kubernetes.EnablePersistentVolumeClaimDeletion, util.True())
 	result.EnableReadinessProbe = fromCRD.Kubernetes.EnableReadinessProbe
+	result.EnableRollingUpdateReadinessCheck = fromCRD.Kubernetes.EnableRollingUpdateReadinessCheck
+	result.RollingUpdateMinReadyTime = util.CoalesceDuration(fromCRD.Kubernetes.RollingUpdateMinReadyTime, "30s")
 	result.MasterPodMoveTimeout = util.CoalesceDuration(fromCRD.Kubernetes.MasterPodMoveTimeout, "10m")
 	result.EnablePodAntiAffinity = fromCRD.Kubernetes.EnablePodAntiAffinity
 	result.PodAntiAffinityTopologyKey = util.Coalesce(fromCRD.Kubernetes.PodAntiAffinityTopologyKey, "kubernetes.io/hostname")

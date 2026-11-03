@@ -156,8 +156,12 @@ type KubernetesMetaConfiguration struct {
 	// +kubebuilder:default=true
 	EnablePersistentVolumeClaimDeletion *bool `json:"enable_persistent_volume_claim_deletion,omitempty"`
 	EnableReadinessProbe                bool  `json:"enable_readiness_probe,omitempty"`
+	EnableRollingUpdateReadinessCheck   bool  `json:"enable_rolling_update_readiness_check,omitempty"`
 	EnableCrossNamespaceSecret          bool  `json:"enable_cross_namespace_secret,omitempty"`
 	EnableFinalizers                    *bool `json:"enable_finalizers,omitempty"`
+	// +kubebuilder:default="30s"
+	// how long a recreated pod has to be ready before a rolling update continues
+	RollingUpdateMinReadyTime *metav1.Duration `json:"rolling_update_min_ready_time,omitempty"`
 }
 
 // PostgresPodResourcesDefaults defines the spec of default resources

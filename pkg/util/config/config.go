@@ -244,6 +244,8 @@ type Config struct {
 	PodTerminateGracePeriod                  *metav1.Duration  `name:"pod_terminate_grace_period" default:"5m"`
 	PodManagementPolicy                      string            `name:"pod_management_policy" default:"ordered_ready"`
 	EnableReadinessProbe                     bool              `name:"enable_readiness_probe" default:"false"`
+	EnableRollingUpdateReadinessCheck        bool              `name:"enable_rolling_update_readiness_check" default:"false"`
+	RollingUpdateMinReadyTime                *metav1.Duration  `name:"rolling_update_min_ready_time" default:"30s"`
 	ProtectedRoles                           []string          `name:"protected_role_names" default:"admin,cron_admin"`
 	PostgresSuperuserTeams                   []string          `name:"postgres_superuser_teams" default:""`
 	SetMemoryRequestToLimit                  bool              `name:"set_memory_request_to_limit" default:"false"`

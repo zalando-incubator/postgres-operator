@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	k8stesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/record"
 
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
@@ -1052,4 +1053,130 @@ func TestUpdateSecretNameConflict(t *testing.T) {
 	// the order of secrets to sync is not deterministic, check only first part of the error message
 	expectedError := fmt.Sprintf("syncing secret %s failed: error while checking for password rotation: could not update secret because of user name mismatch", "default/prepared-owner-user.acid-test-cluster.credentials")
 	assert.Contains(t, err.Error(), expectedError)
+}
+
+func TestSyncStatefulSetRollingUpdateReadinessCheck(t *testing.T) {
+	clusterName := "acid-test-cluster"
+	namespace := "default"
+
+	tests := []struct {
+		subtest           string
+		masterReadyFor    time.Duration
+		newDockerImage    string
+		expectedDeletions int
+	}{
+		{
+			subtest:           "postpone rolling update while a rotated pod is not available",
+			masterReadyFor:    0,
+			expectedDeletions: 0,
+		},
+		{
+			subtest:           "continue rolling update when rotated pods are available",
+			masterReadyFor:    time.Hour,
+			expectedDeletions: 1,
+		},
+		{
+			subtest:           "roll out a new spec change although a pod is not available",
+			masterReadyFor:    0,
+			newDockerImage:    "spilo:fixed",
+			expectedDeletions: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.subtest, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			clientSet := fake.NewSimpleClientset()
+			client := k8sutil.KubernetesClient{
+				PodsGetter:         clientSet.CoreV1(),
+				PostgresqlsGetter:  acidClientSet.AcidV1(),
+				StatefulSetsGetter: clientSet.AppsV1(),
+			}
+			pg := acidv1.Postgresql{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      clusterName,
+					Namespace: namespace,
+				},
+				Spec: acidv1.PostgresSpec{
+					NumberOfInstances: int32(2),
+					Volume: acidv1.Volume{
+						Size: "1Gi",
+					},
+				},
+			}
+			var cluster = New(
+				Config{
+					OpConfig: config.Config{
+						DockerImage:                       "spilo:broken",
+						EnableRollingUpdateReadinessCheck: true,
+						PatroniAPICheckInterval:           &metav1.Duration{Duration: 1 * time.Second},
+						PatroniAPICheckTimeout:            &metav1.Duration{Duration: 5 * time.Second},
+						PodManagementPolicy:               "ordered_ready",
+						RollingUpdateMinReadyTime:         &metav1.Duration{Duration: time.Minute},
+						Resources: config.Resources{
+							ClusterLabels:          map[string]string{"application": "spilo"},
+							ClusterNameLabel:       "cluster-name",
+							DefaultCPURequest:      "300m",
+							DefaultCPULimit:        "300m",
+							DefaultMemoryRequest:   "300Mi",
+							DefaultMemoryLimit:     "300Mi",
+							MinInstances:           int32(-1),
+							MaxInstances:           int32(-1),
+							PodRoleLabel:           "spilo-role",
+							PodDeletionWaitTimeout: &metav1.Duration{Duration: 100 * time.Millisecond},
+							ResourceCheckInterval:  &metav1.Duration{Duration: 3 * time.Second},
+							ResourceCheckTimeout:   &metav1.Duration{Duration: 10 * time.Minute},
+						},
+					},
+				}, client, pg, logger, record.NewFakeRecorder(10))
+			cluster.Name = clusterName
+			cluster.Namespace = namespace
+
+			mockClient := mocks.NewMockHTTPClient(ctrl)
+			patroniConfig := `{"ttl": 20, "postgresql": {"parameters": {"max_connections": "100"}}}`
+			mockClient.EXPECT().Get(gomock.Any()).DoAndReturn(func(url string) (*http.Response, error) {
+				return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader([]byte(patroniConfig)))}, nil
+			}).AnyTimes()
+			mockClient.EXPECT().Do(gomock.Any()).DoAndReturn(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader([]byte(patroniConfig)))}, nil
+			}).AnyTimes()
+			cluster.patroni = patroni.New(patroniLogger, mockClient)
+
+			_, err := cluster.createStatefulSet()
+			assert.NoError(t, err)
+
+			// the master was already rotated, the replica still waits for its rolling update
+			for i, role := range []string{"master", "replica"} {
+				pod := newMockPod(fmt.Sprintf("192.168.100.%d", i+1))
+				pod.Name = fmt.Sprintf("%s-%d", clusterName, i)
+				pod.Namespace = namespace
+				pod.Labels = map[string]string{"cluster-name": clusterName, "application": "spilo", "spilo-role": role}
+				pod.Status.Phase = v1.PodRunning
+				pod.Status.Conditions = []v1.PodCondition{{Type: v1.PodReady, Status: v1.ConditionTrue, LastTransitionTime: metav1.NewTime(time.Now().Add(-time.Hour))}}
+				if role == "master" && tt.masterReadyFor == 0 {
+					pod.Status.Conditions[0].Status = v1.ConditionFalse
+				}
+				if role == "replica" {
+					pod.Annotations = map[string]string{rollingUpdatePodAnnotationKey: "true"}
+				}
+				_, err = clientSet.CoreV1().Pods(namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
+				assert.NoError(t, err)
+			}
+
+			if tt.newDockerImage != "" {
+				cluster.OpConfig.DockerImage = tt.newDockerImage
+			}
+			cluster.syncStatefulSet()
+
+			deletions := 0
+			for _, action := range clientSet.Actions() {
+				if action.Matches("delete", "pods") {
+					deletions++
+				}
+			}
+			assert.Equal(t, tt.expectedDeletions, deletions)
+		})
+	}
 }
