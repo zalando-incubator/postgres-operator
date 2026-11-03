@@ -22,27 +22,6 @@ const (
 	logicalReplicationSlotLagCheckMinVersion = 17 * 10000
 )
 
-func parseLaggingLogicalReplicationSlots(output string) ([]string, error) {
-	laggingSlots := []string{}
-	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
-		if line == "" {
-			continue
-		}
-		fields := strings.Split(line, "|")
-		if len(fields) != 2 {
-			return nil, fmt.Errorf("unexpected logical replication slot lag output: %q", line)
-		}
-		lagBytes, err := strconv.ParseInt(fields[1], 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("invalid logical replication slot lag for slot %q: %w", fields[0], err)
-		}
-		if lagBytes > logicalReplicationSlotLagThreshold {
-			laggingSlots = append(laggingSlots, line)
-		}
-	}
-	return laggingSlots, nil
-}
-
 // IsBiggerPostgresVersion Compare two Postgres version numbers
 func IsBiggerPostgresVersion(old string, new string) bool {
 	oldN, _ := strconv.Atoi(old)
@@ -255,20 +234,12 @@ func (c *Cluster) majorVersionUpgrade() error {
 	if allRunning {
 		podName := &spec.NamespacedName{Namespace: masterPod.Namespace, Name: masterPod.Name}
 		if c.currentMajorVersion >= logicalReplicationSlotLagCheckMinVersion {
-			const logicalSlotLagQuery = `SELECT slot_name, pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn)::bigint
-			FROM pg_replication_slots WHERE slot_type = 'logical'`
-			slotLagOutput, err := c.ExecCommand(podName, "psql", "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-U", c.OpConfig.SuperUsername, "-d", "postgres", "-c", logicalSlotLagQuery)
+			laggingSlots, err := c.getLaggingLogicalReplicationSlots(podName, logicalReplicationSlotLagThreshold)
 			if err != nil {
-				c.logger.Errorf("skipping major version upgrade, could not check logical replication slot lag: %v", err)
 				return fmt.Errorf("could not check logical replication slot lag: %w", err)
 			}
-			laggingSlots, err := parseLaggingLogicalReplicationSlots(slotLagOutput)
-			if err != nil {
-				c.logger.Errorf("skipping major version upgrade, could not parse logical replication slot lag: %v", err)
-				return fmt.Errorf("could not parse logical replication slot lag: %w", err)
-			}
-			if len(laggingSlots) > 0 {
-				c.logger.Errorf("skipping major version upgrade, logical replication slot lag exceeds %d bytes (slot_name|lag_bytes): %s", logicalReplicationSlotLagThreshold, strings.Join(laggingSlots, ", "))
+			if laggingSlots != "" {
+				c.logger.Errorf("skipping major version upgrade, logical replication slot lag exceeds %d bytes (slot_name|lag_bytes): %s", logicalReplicationSlotLagThreshold, laggingSlots)
 				return nil
 			}
 		}

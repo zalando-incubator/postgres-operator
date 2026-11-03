@@ -109,6 +109,27 @@ func (c *Cluster) pgConnectionString(dbname string) string {
 		constants.PostgresConnectTimeout/time.Second)
 }
 
+func logicalReplicationSlotLagQuery(threshold int64) string {
+	return fmt.Sprintf(`WITH slot_lag AS (
+		SELECT slot_name, pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn) AS lag_bytes
+		FROM pg_replication_slots
+		WHERE slot_type = 'logical'
+	)
+	SELECT slot_name, COALESCE(lag_bytes::text, 'unknown')
+	FROM slot_lag
+	WHERE lag_bytes IS NULL OR lag_bytes > %d`, threshold)
+}
+
+func (c *Cluster) getLaggingLogicalReplicationSlots(podName *spec.NamespacedName, threshold int64) (string, error) {
+	query := logicalReplicationSlotLagQuery(threshold)
+
+	output, err := c.ExecCommand(podName, "psql", "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-U", c.OpConfig.SuperUsername, "-d", "postgres", "-c", query)
+	if err != nil {
+		return "", fmt.Errorf("could not execute logical replication slot lag query: %w", err)
+	}
+	return strings.TrimSpace(output), nil
+}
+
 func (c *Cluster) databaseAccessDisabled() bool {
 	if !c.OpConfig.EnableDBAccess {
 		c.logger.Debug("database access is disabled")
