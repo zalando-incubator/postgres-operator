@@ -1053,3 +1053,37 @@ func TestUpdateSecretNameConflict(t *testing.T) {
 	expectedError := fmt.Sprintf("syncing secret %s failed: error while checking for password rotation: could not update secret because of user name mismatch", "default/prepared-owner-user.acid-test-cluster.credentials")
 	assert.Contains(t, err.Error(), expectedError)
 }
+
+func TestCreateExtensionsInOrder(t *testing.T) {
+	// hstore_plperl needs hstore and plperl; plperl comes after it in name order
+	requires := map[string][]string{"hstore_plperl": {"hstore", "plperl"}}
+
+	run := func(extensions map[string]string, available ...string) ([]string, []string) {
+		created := make([]string, 0)
+		create := func(extName, schema string) error {
+			if !slices.Contains(available, extName) {
+				return fmt.Errorf("extension %q is not available", extName)
+			}
+			for _, required := range requires[extName] {
+				if !slices.Contains(created, required) {
+					return fmt.Errorf("required extension %q is not installed", required)
+				}
+			}
+			created = append(created, extName)
+			return nil
+		}
+		return created, createExtensionsInOrder(extensions, create)
+	}
+
+	extensions := map[string]string{"hstore": "public", "hstore_plperl": "public", "plperl": "public"}
+	for i := 0; i < 10; i++ { // map order differs from run to run
+		created, errs := run(extensions, "hstore", "hstore_plperl", "plperl")
+		assert.Empty(t, errs)
+		assert.Equal(t, []string{"hstore", "plperl", "hstore_plperl"}, created)
+	}
+
+	// an extension that is not available is reported once, and the others are created
+	created, errs := run(map[string]string{"missing": "public", "hstore": "public"}, "hstore")
+	assert.Equal(t, []string{"hstore"}, created)
+	assert.Equal(t, []string{`extension "missing" is not available`}, errs)
+}

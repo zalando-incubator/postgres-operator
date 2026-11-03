@@ -1712,11 +1712,7 @@ func (c *Cluster) syncExtensions(extensions map[string]string) error {
 		}
 	}
 
-	for extName, schema := range createExtensions {
-		if err = c.executeCreateExtension(extName, schema); err != nil {
-			errors = append(errors, err.Error())
-		}
-	}
+	errors = append(errors, createExtensionsInOrder(createExtensions, c.executeCreateExtension)...)
 	for extName, schema := range alterExtensions {
 		if err = c.executeAlterExtension(extName, schema); err != nil {
 			errors = append(errors, err.Error())
@@ -1728,6 +1724,28 @@ func (c *Cluster) syncExtensions(extensions map[string]string) error {
 	}
 
 	return nil
+}
+
+// createExtensionsInOrder creates the extensions in name order and returns the errors.
+// An extension that needs another one of the list (hstore_plperl needs plperl) fails
+// until that one exists, so the failed ones are tried again while a pass creates at
+// least one more.
+func createExtensionsInOrder(extensions map[string]string, create func(extName, schema string) error) []string {
+	pending := slices.Sorted(maps.Keys(extensions))
+	for {
+		failed := make([]string, 0)
+		errors := make([]string, 0)
+		for _, extName := range pending {
+			if err := create(extName, extensions[extName]); err != nil {
+				failed = append(failed, extName)
+				errors = append(errors, err.Error())
+			}
+		}
+		if len(failed) == 0 || len(failed) == len(pending) {
+			return errors
+		}
+		pending = failed
+	}
 }
 
 func (c *Cluster) syncLogicalBackupJob() error {
