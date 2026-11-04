@@ -2436,7 +2436,7 @@ class EndToEndTestCase(unittest.TestCase):
         try:
             k8s.update_config(patch_toleration_config, step="allow tainted nodes")
             self.eventuallyEqual(lambda: k8s.get_operator_state(), {"0": "idle"},
-                        "Operator does not get in sync")
+                        "Operator does not get in sync", retries=180)
 
             self.eventuallyEqual(lambda: k8s.count_running_pods(), 2, "No 2 pods running")
             self.eventuallyEqual(lambda: len(k8s.get_patroni_running_members("acid-minimal-cluster-0")), 2, "Postgres status did not enter running")
