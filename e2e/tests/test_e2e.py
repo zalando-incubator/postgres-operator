@@ -2413,6 +2413,19 @@ class EndToEndTestCase(unittest.TestCase):
         self.assertNotEqual(master_nodes, [])
         self.assertNotEqual(replica_nodes, [])
 
+        # Keep the operator running if it shares the master's node.
+        operator_pod = k8s.get_operator_pod()
+        operator_tolerations = [
+            k8s.api.k8s_client.sanitize_for_serialization(toleration)
+            for toleration in (operator_pod.spec.tolerations or [])
+        ]
+        operator_tolerations.append({
+            "key": "postgres",
+            "operator": "Exists",
+            "effect": "NoExecute"
+        })
+        k8s.patch_pod({"spec": {"tolerations": operator_tolerations}}, operator_pod.metadata.name)
+
         # taint node with postgres=:NoExecute to force failover
         body = {
             "spec": {
