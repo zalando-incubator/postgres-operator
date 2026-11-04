@@ -172,6 +172,9 @@ type Volume struct {
 	// +kubebuilder:validation:Maximum=2000
 	Throughput *int32 `json:"throughput,omitempty"`
 	VolumeType string `json:"type,omitempty"`
+	// VolumeAttributesClass is the name of the VolumeAttributesClass set on the data volume claims.
+	// Changing it modifies the existing persistent volume claims in place.
+	VolumeAttributesClass string `json:"volumeAttributesClass,omitempty"`
 }
 
 // AdditionalVolume specs additional optional volumes for statefulset

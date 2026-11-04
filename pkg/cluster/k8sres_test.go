@@ -2159,6 +2159,61 @@ func TestVolumeSelector(t *testing.T) {
 	}
 }
 
+func TestVolumeAttributesClass(t *testing.T) {
+	tests := []struct {
+		subTest   string
+		volume    acidv1.Volume
+		wantClass *string
+	}{
+		{
+			subTest:   "PVC template has no volume attributes class",
+			volume:    acidv1.Volume{Size: "1G"},
+			wantClass: nil,
+		},
+		{
+			subTest:   "PVC template has volume attributes class",
+			volume:    acidv1.Volume{Size: "1G", VolumeAttributesClass: "gp3-fast"},
+			wantClass: k8sutil.StringToPointer("gp3-fast"),
+		},
+	}
+
+	cluster := New(
+		Config{
+			OpConfig: config.Config{
+				PodManagementPolicy: "ordered_ready",
+				Auth: config.Auth{
+					SuperUsername:       superUserName,
+					ReplicationUsername: replicationUserName,
+				},
+			},
+		}, k8sutil.KubernetesClient{}, acidv1.Postgresql{}, logger, eventRecorder)
+
+	for _, tt := range tests {
+		t.Run(tt.subTest, func(t *testing.T) {
+			pgSpec := acidv1.PostgresSpec{
+				TeamID: "myapp",
+				Resources: &acidv1.Resources{
+					ResourceRequests: acidv1.ResourceDescription{CPU: k8sutil.StringToPointer("1"), Memory: k8sutil.StringToPointer("10")},
+					ResourceLimits:   acidv1.ResourceDescription{CPU: k8sutil.StringToPointer("1"), Memory: k8sutil.StringToPointer("10")},
+				},
+				Volume: tt.volume,
+			}
+			sts, err := cluster.generateStatefulSet(&pgSpec)
+			assert.NoError(t, err)
+
+			var dataVolume *v1.PersistentVolumeClaim
+			for i, ct := range sts.Spec.VolumeClaimTemplates {
+				if ct.Name == constants.DataVolumeName {
+					dataVolume = &sts.Spec.VolumeClaimTemplates[i]
+				}
+			}
+			if assert.NotNil(t, dataVolume, "no data volume claim template in statefulset") {
+				assert.Equal(t, tt.wantClass, dataVolume.Spec.VolumeAttributesClassName)
+			}
+		})
+	}
+}
+
 // inject sidecars through all available mechanisms and check the resulting container specs
 func TestSidecars(t *testing.T) {
 	var err error
