@@ -1286,7 +1286,8 @@ class EndToEndTestCase(unittest.TestCase):
         }
         k8s.api.custom_objects_api.patch_namespaced_custom_object(
             "acid.zalan.do", "v1", "default", "postgresqls", "acid-upgrade-test", pg_patch_version_higher_version)
-        self.eventuallyEqual(lambda: k8s.get_operator_state(), {"0": "idle"}, "Operator does not get in sync")
+        self.eventuallyEqual(lambda: k8s.get_operator_state(), {"0": "idle"}, "Operator does not get in sync",
+                             retries=180)
 
         k8s.wait_for_pod_failover(master_nodes, 'spilo-role=replica,' + cluster_label)
         k8s.wait_for_pod_start('spilo-role=master,' + cluster_label)
