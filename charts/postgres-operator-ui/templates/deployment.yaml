@@ -19,6 +19,9 @@ spec:
       labels:
         app.kubernetes.io/name: {{ template "postgres-operator-ui.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- with .Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}

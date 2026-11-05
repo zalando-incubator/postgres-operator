@@ -54,6 +54,10 @@ envs:
 podAnnotations:
   {}
 
+# Extra pod labels
+podLabels:
+  {}
+
 # configure extra UI ENVs
 # Extra ENVs are writen in kubenertes format and added "as is" to the pod's env variables
 # https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/
