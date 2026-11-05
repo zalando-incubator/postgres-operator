@@ -17,6 +17,10 @@ spec:
         name: postgres-operator
     spec:
       serviceAccountName: postgres-operator
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: postgres-operator
         image: ghcr.io/zalando/postgres-operator:v2.0.3
@@ -33,6 +37,11 @@ spec:
           runAsNonRoot: true
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop:
+            - ALL
         env:
         # provided additional ENV vars can overwrite individual config map entries
         - name: CONFIG_MAP_NAME

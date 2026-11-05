@@ -521,11 +521,21 @@ resources:
     cpu: 100m
     memory: 250Mi
 
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
 securityContext:
   runAsUser: 1000
   runAsNonRoot: true
   readOnlyRootFilesystem: true
   allowPrivilegeEscalation: false
+  seccompProfile:
+    type: RuntimeDefault
+  capabilities:
+    drop:
+    - ALL
 
 # Allow to setup operator Deployment readiness probe
 readinessProbe:
