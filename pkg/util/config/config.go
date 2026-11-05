@@ -195,6 +195,7 @@ type Config struct {
 	LogS3Bucket                              string            `name:"log_s3_bucket"`
 	KubeIAMRole                              string            `name:"kube_iam_role"`
 	IRSARoleARN                              string            `name:"irsa_role_arn"`
+	EnableEKSPodIdentity                     bool              `name:"enable_eks_pod_identity" default:"false"`
 	WALGSBucket                              string            `name:"wal_gs_bucket"`
 	GCPCredentials                           string            `name:"gcp_credentials"`
 	WALAZStorageAccount                      string            `name:"wal_az_storage_account"`

@@ -170,6 +170,7 @@ configuration:
     # gcp_credentials: ""
     # kube_iam_role: ""
     # irsa_role_arn: ""
+    # enable_eks_pod_identity: false
     # log_s3_bucket: ""
     # wal_az_storage_account: ""
     # wal_gs_bucket: ""

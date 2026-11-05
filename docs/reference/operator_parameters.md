@@ -821,6 +821,17 @@ yet officially supported.
   credentials directly into pods. Must be a full ARN, e.g.
   `arn:aws:iam::123456789012:role/my-postgres-role`. The default is empty.
 
+* **enable_eks_pod_identity**
+  Use the credentials of an
+  [EKS Pod Identity](https://docs.aws.amazon.com/eks/latest/userguide/pod-identities.html)
+  association of the Postgres pod service account. The association is created
+  on the AWS side, the operator does not manage it. When enabled, the operator
+  sets `SPILO_PROVIDER=aws` and passes `aws_region` as `CLONE_AWS_REGION` /
+  `STANDBY_AWS_REGION`. The `AWS_CONTAINER_*` variables injected by EKS are
+  propagated to WAL-G by Spilo, which requires a Spilo image with Pod Identity
+  support. `irsa_role_arn` takes precedence when both are set. The default is
+  `false`.
+
 * **aws_region**
   AWS region used to store EBS volumes. The default is `eu-central-1`. Note,
   this option is not meant for specifying the AWS region for backups and

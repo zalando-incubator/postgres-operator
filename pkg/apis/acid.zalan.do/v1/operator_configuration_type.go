@@ -253,6 +253,7 @@ type AWSGCPConfiguration struct {
 	LogS3Bucket               string `json:"log_s3_bucket,omitempty"`
 	KubeIAMRole               string `json:"kube_iam_role,omitempty"`
 	IRSARoleARN               string `json:"irsa_role_arn,omitempty"`
+	EnableEKSPodIdentity      bool   `json:"enable_eks_pod_identity,omitempty"`
 	AdditionalSecretMount     string `json:"additional_secret_mount,omitempty"`
 	AdditionalSecretMountPath string `json:"additional_secret_mount_path,omitempty"`
 }
