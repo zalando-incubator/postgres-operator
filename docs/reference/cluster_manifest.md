@@ -546,6 +546,17 @@ properties of the persistent storage that stores Postgres data.
   documentation](https://kubernetes.io/docs/concepts/storage/storage-classes/)
   for the details on storage classes. Optional.
 
+* **volumeAttributesClass**
+  the name of the Kubernetes VolumeAttributesClass to set on the data volume
+  claims. Unlike `storageClass` it can be changed for existing volumes: the
+  operator updates the persistent volume claims and the CSI driver modifies the
+  volumes in place, independently of `storage_resize_mode`. Removing the field
+  keeps the class on existing volume claims. When it is set, `iops`,
+  `throughput` and `type` are ignored in the `mixed` storage resize mode.
+  Requires a Kubernetes version and CSI driver that support it. See [Kubernetes
+  documentation](https://kubernetes.io/docs/concepts/storage/volume-attributes-classes/)
+  for details. Optional.
+
 * **subPath**
   Subpath to use when mounting volume into Spilo container. Optional.
 

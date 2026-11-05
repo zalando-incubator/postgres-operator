@@ -1500,7 +1500,7 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*appsv1.Statef
 	}
 
 	if volumeClaimTemplate, err = c.generatePersistentVolumeClaimTemplate(spec.Volume.Size,
-		spec.Volume.StorageClass, spec.Volume.Selector); err != nil {
+		spec.Volume.StorageClass, spec.Volume.VolumeAttributesClass, spec.Volume.Selector); err != nil {
 		return nil, fmt.Errorf("could not generate volume claim template: %v", err)
 	}
 
@@ -1855,12 +1855,17 @@ func (c *Cluster) addAdditionalVolumes(podSpec *v1.PodSpec,
 	podSpec.Volumes = volumes
 }
 
-func (c *Cluster) generatePersistentVolumeClaimTemplate(volumeSize, volumeStorageClass string,
+func (c *Cluster) generatePersistentVolumeClaimTemplate(volumeSize, volumeStorageClass, volumeAttributesClass string,
 	volumeSelector *metav1.LabelSelector) (*v1.PersistentVolumeClaim, error) {
 
 	var storageClassName *string
 	if volumeStorageClass != "" {
 		storageClassName = &volumeStorageClass
+	}
+
+	var volumeAttributesClassName *string
+	if volumeAttributesClass != "" {
+		volumeAttributesClassName = &volumeAttributesClass
 	}
 
 	quantity, err := resource.ParseQuantity(volumeSize)
@@ -1882,9 +1887,10 @@ func (c *Cluster) generatePersistentVolumeClaimTemplate(volumeSize, volumeStorag
 					v1.ResourceStorage: quantity,
 				},
 			},
-			StorageClassName: storageClassName,
-			VolumeMode:       &volumeMode,
-			Selector:         volumeSelector,
+			StorageClassName:          storageClassName,
+			VolumeAttributesClassName: volumeAttributesClassName,
+			VolumeMode:                &volumeMode,
+			Selector:                  volumeSelector,
 		},
 	}
 

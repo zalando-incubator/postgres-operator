@@ -60,6 +60,7 @@ spec:
   volume:
     size: 1Gi
 #    storageClass: my-sc
+#    volumeAttributesClass: my-vac
 #    iops: 1000
 #    throughput: 250  # in MB/s
 #    selector:

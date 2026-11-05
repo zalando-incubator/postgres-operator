@@ -1128,10 +1128,10 @@ func (c *Cluster) Update(oldSpec, newSpec *acidv1.Postgresql) error {
 	}()
 
 	// Volume
-	if c.OpConfig.StorageResizeMode != "off" {
-		c.syncVolumes()
-	} else {
-		c.logger.Infof("Storage resize is disabled (storage_resize_mode is off). Skipping volume size sync.")
+	// volume claims are always synced (annotations, volume attributes class);
+	// size changes are skipped inside syncVolumes when storage_resize_mode is off
+	if err := c.syncVolumes(); err != nil {
+		c.logger.Errorf("could not sync volumes: %v", err)
 	}
 
 	// Pod service account (IRSA annotation sync)

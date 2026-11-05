@@ -116,6 +116,89 @@ func TestResizeVolumeClaim(t *testing.T) {
 	}
 }
 
+func TestSyncVolumeAttributesClass(t *testing.T) {
+	clusterName := "acid-test-cluster"
+	namespace := "default"
+
+	tests := []struct {
+		subTest       string
+		resizeMode    string
+		manifestClass string
+		pvcClass      *string
+		wantClass     *string
+	}{
+		{
+			subTest:       "class from manifest is set on existing volume claims",
+			resizeMode:    "pvc",
+			manifestClass: "gp3-fast",
+			pvcClass:      nil,
+			wantClass:     k8sutil.StringToPointer("gp3-fast"),
+		},
+		{
+			subTest:       "changed class in manifest replaces the class of existing volume claims",
+			resizeMode:    "pvc",
+			manifestClass: "gp3-fast",
+			pvcClass:      k8sutil.StringToPointer("gp3-slow"),
+			wantClass:     k8sutil.StringToPointer("gp3-fast"),
+		},
+		{
+			subTest:       "class is synced when storage resize mode is off",
+			resizeMode:    "off",
+			manifestClass: "gp3-fast",
+			pvcClass:      nil,
+			wantClass:     k8sutil.StringToPointer("gp3-fast"),
+		},
+		{
+			subTest:       "class removed from manifest is kept on existing volume claims",
+			resizeMode:    "pvc",
+			manifestClass: "",
+			pvcClass:      k8sutil.StringToPointer("gp3-slow"),
+			wantClass:     k8sutil.StringToPointer("gp3-slow"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.subTest, func(t *testing.T) {
+			client, _ := newFakeK8sPVCclient()
+			cluster := New(
+				Config{
+					OpConfig: config.Config{
+						Resources: config.Resources{
+							ClusterLabels:    map[string]string{"application": "spilo"},
+							ClusterNameLabel: "cluster-name",
+						},
+						StorageResizeMode: tt.resizeMode,
+					},
+				}, client, acidv1.Postgresql{}, logger, eventRecorder)
+			cluster.Name = clusterName
+			cluster.Namespace = namespace
+			cluster.Spec.Volume.Size = "1Gi"
+			cluster.Spec.Volume.VolumeAttributesClass = tt.manifestClass
+
+			pvcList := CreatePVCs(namespace, clusterName, cluster.labelsSet(false), 2, "1Gi")
+			otherClusterLabels := labels.Set{"application": "spilo", "cluster-name": clusterName + "-2"}
+			otherCluster := CreatePVCs(namespace, clusterName+"-2", otherClusterLabels, 1, "1Gi").Items[0]
+			for _, pvc := range append(pvcList.Items, otherCluster) {
+				pvc.Spec.VolumeAttributesClassName = tt.pvcClass
+				_, err := client.PersistentVolumeClaims(namespace).Create(context.TODO(), &pvc, metav1.CreateOptions{})
+				assert.NoError(t, err)
+			}
+
+			assert.NoError(t, cluster.syncVolumes())
+
+			for _, pvc := range pvcList.Items {
+				got, err := client.PersistentVolumeClaims(namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
+				assert.NoError(t, err)
+				assert.Equal(t, tt.wantClass, got.Spec.VolumeAttributesClassName, "volume claim %q", pvc.Name)
+			}
+
+			got, err := client.PersistentVolumeClaims(namespace).Get(context.TODO(), otherCluster.Name, metav1.GetOptions{})
+			assert.NoError(t, err)
+			assert.Equal(t, tt.pvcClass, got.Spec.VolumeAttributesClassName, "volume claim of other cluster must not change")
+		})
+	}
+}
+
 func TestQuantityToGigabyte(t *testing.T) {
 	tests := []struct {
 		name        string

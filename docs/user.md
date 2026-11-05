@@ -1145,6 +1145,27 @@ have to delete the PVC, which will hang until you also delete the corresponding
 pod. Proceed with the next pod when the cluster is healthy again and replicas
 are streaming.
 
+## Change volume attributes
+
+If your Kubernetes cluster and CSI driver support
+[VolumeAttributesClasses](https://kubernetes.io/docs/concepts/storage/volume-attributes-classes/),
+you can change attributes like IOPS and throughput of existing volumes by
+setting the class in the cluster manifest:
+
+```yaml
+spec:
+  volume:
+    size: 5Gi
+    volumeAttributesClass: gp3-fast
+```
+
+The operator sets the class on the statefulset's volume claim template and
+updates the existing persistent volume claims, regardless of the
+`storage_resize_mode`. The CSI driver then modifies the volumes without
+restarting the pods. When the class is set, the operator does not change IOPS,
+throughput or volume type through the AWS API in the `mixed` mode. Removing the
+field from the manifest leaves the class on existing volume claims.
+
 ## Logical backups
 
 You can enable logical backups (SQL dumps) from the cluster manifest by adding

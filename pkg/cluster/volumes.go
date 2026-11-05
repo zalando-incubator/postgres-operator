@@ -80,6 +80,12 @@ func (c *Cluster) syncUnderlyingEBSVolume() error {
 
 	errors := make([]string, 0)
 
+	// with a volume attributes class the CSI driver owns iops, throughput and volume type
+	useVolumeAttributesClass := targetValue.VolumeAttributesClass != ""
+	if useVolumeAttributesClass && (targetValue.Iops != nil || targetValue.Throughput != nil || targetValue.VolumeType != "") {
+		c.logger.Warningf("volume attributes class %q is set, ignoring iops, throughput and type of the volume in the manifest", targetValue.VolumeAttributesClass)
+	}
+
 	for _, volume := range c.EBSVolumes {
 		var modifyIops *int32
 		var modifyThroughput *int32
@@ -104,6 +110,10 @@ func (c *Cluster) syncUnderlyingEBSVolume() error {
 
 		if targetValue.VolumeType != "" && targetValue.VolumeType != volume.VolumeType {
 			modifyType = &targetValue.VolumeType
+		}
+
+		if useVolumeAttributesClass {
+			modifyIops, modifyThroughput, modifyType = nil, nil, nil
 		}
 
 		if modifyIops != nil || modifyThroughput != nil || modifySize != nil || modifyType != nil {
@@ -199,6 +209,17 @@ func (c *Cluster) syncVolumeClaims() error {
 			}
 		}
 
+		if c.volumeAttributesClassNeedsUpdate(&pvc) {
+			volumeAttributesClass := c.Spec.Volume.VolumeAttributesClass
+			pvc.Spec.VolumeAttributesClassName = &volumeAttributesClass
+			needsUpdate = true
+			c.logger.Infof("persistent volume claim for volume %q needs volume attributes class %q", pvc.Name, volumeAttributesClass)
+		}
+
+		if status := pvc.Status.ModifyVolumeStatus; status != nil && status.Status == v1.PersistentVolumeClaimModifyVolumeInfeasible {
+			c.logger.Warningf("modifying persistent volume claim %q to volume attributes class %q is infeasible", pvc.Name, status.TargetVolumeAttributesClassName)
+		}
+
 		if needsUpdate {
 			c.logger.Infof("updating persistent volume claim definition for volume %q", pvc.Name)
 			updatedPvc, err := c.KubeClient.PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), &pvc, metav1.UpdateOptions{})
@@ -228,6 +249,19 @@ func (c *Cluster) syncVolumeClaims() error {
 	c.logger.Debug("volume claims have been synced successfully")
 
 	return nil
+}
+
+// volumeAttributesClassNeedsUpdate reports whether the volume claim has to be switched to the volume attributes class
+// of the manifest. Removing the class from the manifest leaves existing volume claims unchanged.
+func (c *Cluster) volumeAttributesClassNeedsUpdate(pvc *v1.PersistentVolumeClaim) bool {
+	wanted := c.Spec.Volume.VolumeAttributesClass
+	if wanted == "" {
+		if pvc.Spec.VolumeAttributesClassName != nil {
+			c.logger.Debugf("no volume attributes class in the manifest, keeping %q on persistent volume claim %q", *pvc.Spec.VolumeAttributesClassName, pvc.Name)
+		}
+		return false
+	}
+	return pvc.Spec.VolumeAttributesClassName == nil || *pvc.Spec.VolumeAttributesClassName != wanted
 }
 
 // syncVolumes reads all persistent volumes and checks that their size matches the one declared in the statefulset.
