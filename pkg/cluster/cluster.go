@@ -585,15 +585,6 @@ func (c *Cluster) compareStatefulSetWith(statefulSet *appsv1.StatefulSet) *compa
 		reasons = append(reasons, "new statefulset's pod priority class in spec does not match the current one")
 	}
 
-	// lazy Spilo update: modify the image in the statefulset itself but let its pods run with the old image
-	// until they are re-created for other reasons, for example during maintenance window or node rotation
-	effectivePodImage := getPostgresContainer(&c.Statefulset.Spec.Template.Spec).Image
-	desiredImage := getPostgresContainer(&statefulSet.Spec.Template.Spec).Image
-	if c.OpConfig.EnableLazySpiloUpgrade && !reflect.DeepEqual(effectivePodImage, desiredImage) {
-		needsReplace = true
-		reasons = append(reasons, lazySpiloUpdateReason)
-	}
-
 	if needsRollUpdate || needsReplace {
 		match = false
 	}

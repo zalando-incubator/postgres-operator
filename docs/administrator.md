@@ -214,14 +214,22 @@ Note that, changes in `SPILO_CONFIGURATION` env variable under `bootstrap.dcs`
 path are ignored for the diff. They will be applied through Patroni's rest api
 interface, following a restart of all instances.
 
-The operator also supports lazy updates of the Spilo image. In this case the
-StatefulSet is updated without immediately restarting its pods. When maintenance
-windows are enabled and defined, the rolling update is delayed until the next
-maintenance window. If maintenance windows are disabled or none are defined,
-the pods continue running the old image until they are recreated for another
-reason, such as a Kubernetes node rotation. To force an immediate rolling
-update, disable this mode by setting `enable_lazy_spilo_upgrade` to `false` in
-the operator configuration and restart the operator pod.
+When `maintenanceWindows` are defined in the Postgres manifest or in the global
+config and the Spilo image is the only difference, the operator will update the
+StatefulSet and rotate its pods only during these periods. Make sure they are at
+least twice as long as your configured `resync_period` to guarantee that
+operator actions can be triggered.
+
+The operator also supports lazy updates of the Spilo image. In this case only
+the StatefulSet is updated - its pods are left untouched and keep running the
+old image until they are recreated for another reason, such as a Kubernetes
+node rotation. Maintenance windows have no effect on the lazy update. To force
+a rolling update instead, disable this mode by setting
+`enable_lazy_spilo_upgrade` to `false` in the operator configuration and restart
+the operator pod. Pods that were left behind by a previous lazy update are then
+rotated with the next maintenance window if defined. If you cannot wait until
+the next maintenance window you have to set `enable_maintenance_windows` to
+`false` as well.
 
 ## Delete protection via annotations
 

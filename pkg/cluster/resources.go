@@ -20,9 +20,6 @@ import (
 
 const (
 	rollingUpdatePodAnnotationKey = "zalando-postgres-operator-rolling-update-required"
-	rollingUpdateLazyUpgradeValue = "lazy upgrade"
-	containerImageDiffReason      = "image does not match the current one"
-	lazySpiloUpdateReason         = "lazy Spilo update: new statefulset's pod image does not match the current one"
 )
 
 func (c *Cluster) listResources() error {

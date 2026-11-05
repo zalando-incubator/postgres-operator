@@ -364,6 +364,17 @@ class K8s:
         return (pod.items[0].metadata.annotations or {}).get(
             "zalando-postgres-operator-rolling-update-required")
 
+    def get_pod_creation_timestamp(self, pod_name, namespace='default'):
+        '''
+        Get the creation timestamp of a pod to detect its recreation.
+        '''
+        pod = self.api.core_v1.list_namespaced_pod(
+            namespace, label_selector="statefulset.kubernetes.io/pod-name=" + pod_name)
+
+        if len(pod.items) == 0:
+            return None
+        return pod.items[0].metadata.creation_timestamp
+
     def get_cluster_pod(self, role, labels='application=spilo,cluster-name=acid-minimal-cluster', namespace='default'):
         labels = labels + ',spilo-role=' + role
 

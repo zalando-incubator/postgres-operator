@@ -6,7 +6,6 @@ import (
 	"slices"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -51,34 +50,6 @@ func (c *Cluster) getRolePods(role PostgresRole) ([]v1.Pod, error) {
 	return pods.Items, nil
 }
 
-// getRollingUpdateReason returns the reason for the rolling update based on the comparison result.
-func (c *Cluster) getRollingUpdateReason(cmp *compareStatefulsetResult) string {
-	// if the only reason is a Spilo image update and lazy update is enabled
-	// provide a different message so a different pod annotation is used
-	if c.OpConfig.EnableLazySpiloUpgrade && isImageDiffOnly(cmp.reasons) {
-		return rollingUpdateLazyUpgradeValue
-	}
-	return "pod changes"
-}
-
-// isImageDiffOnly tells if a changed Spilo image is the only semantic difference.
-// It is reported twice - once for the statefulset and once for the container diff.
-func isImageDiffOnly(reasons []string) bool {
-	if len(reasons) != 2 {
-		return false
-	}
-	statefulsetDiff, containerDiff := false, false
-	for _, reason := range reasons {
-		switch {
-		case reason == lazySpiloUpdateReason:
-			statefulsetDiff = true
-		case strings.Contains(reason, containerImageDiffReason):
-			containerDiff = true
-		}
-	}
-	return statefulsetDiff && containerDiff
-}
-
 // getRollingUpdateAnnotationFromPod returns the value of the rollingUpdate annotation from the given pod
 func (c *Cluster) getRollingUpdateAnnotationFromPod(pod *v1.Pod) string {
 	return pod.GetAnnotations()[rollingUpdatePodAnnotationKey]
@@ -95,9 +66,6 @@ func (c *Cluster) markRollingUpdateForPod(pod *v1.Pod, msg string) error {
 	c.logger.Infof("mark rolling update annotation for %s: reason %s", pod.Name, msg)
 	annotations := make(map[string]string)
 	annotationValue := strconv.FormatBool(true)
-	if msg == rollingUpdateLazyUpgradeValue {
-		annotationValue = rollingUpdateLazyUpgradeValue
-	}
 	annotations[rollingUpdatePodAnnotationKey] = annotationValue
 
 	patchData, err := metaAnnotationsPatch(annotations)

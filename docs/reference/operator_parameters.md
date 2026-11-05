@@ -83,7 +83,7 @@ Those are top-level keys, containing both leaf keys and groups.
   The operator will register CRDs in the `all` category by default so that they will be returned by a `kubectl get all` call. You are free to change categories or leave them empty.
 
 * **enable_lazy_spilo_upgrade**
-  Instruct operator to update only the statefulsets with new images (Spilo and InitContainers) without immediately doing the rolling update. The assumption is pods will be re-started later with new images, for example due to the node rotation.
+  Instruct operator to update only the statefulsets with new images (Spilo and InitContainers) without doing the rolling update. The assumption is pods will be re-started later with new images, for example due to the node rotation. Maintenance windows are not taken into account. When set back to `false` the pods that are still running the old image are rotated with the next maintenance window if defined.
   The default is `false`.
 
 * **enable_pgversion_env_var**
