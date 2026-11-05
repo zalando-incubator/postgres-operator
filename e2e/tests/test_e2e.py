@@ -1292,11 +1292,14 @@ class EndToEndTestCase(unittest.TestCase):
         k8s.wait_for_pod_failover(master_nodes, 'spilo-role=replica,' + cluster_label)
         k8s.wait_for_pod_start('spilo-role=master,' + cluster_label)
         k8s.wait_for_pod_start('spilo-role=replica,' + cluster_label)
-        self.eventuallyEqual(check_version, 15, "Version should be upgraded from 14 to 15")
+        self.eventuallyEqual(check_version, 15, "Version should be upgraded from 14 to 15", retries=180)
 
         # check if annotation for last upgrade's success is set
+        self.eventuallyTrue(
+            lambda: get_annotations().get("last-major-upgrade-success"),
+            "Annotation for last upgrade's success is not set",
+            retries=180)
         annotations = get_annotations()
-        self.assertIsNotNone(annotations.get("last-major-upgrade-success"), "Annotation for last upgrade's success is not set")
 
         # should not upgrade because current time is not in maintenanceWindow
         current_time = datetime.now()
@@ -1343,12 +1346,15 @@ class EndToEndTestCase(unittest.TestCase):
         k8s.wait_for_pod_failover(master_nodes, 'spilo-role=master,' + cluster_label)
         k8s.wait_for_pod_start('spilo-role=master,' + cluster_label)
         k8s.wait_for_pod_start('spilo-role=replica,' + cluster_label)
-        self.eventuallyEqual(check_version, 16, "Version should be upgraded from 15 to 16")
+        self.eventuallyEqual(check_version, 16, "Version should be upgraded from 15 to 16", retries=180)
 
         # check if annotation for last upgrade's success is updated after second upgrade
+        self.eventuallyTrue(
+            lambda: get_annotations().get("last-major-upgrade-success") not in
+            (None, annotations.get("last-major-upgrade-success")),
+            "Annotation for last upgrade's success is not updated",
+            retries=180)
         third_annotations = get_annotations()
-        self.assertIsNotNone(third_annotations.get("last-major-upgrade-success"), "Annotation for last upgrade's success is not set")
-        self.assertNotEqual(annotations.get("last-major-upgrade-success"), third_annotations.get("last-major-upgrade-success"), "Annotation for last upgrade's success is not updated")
 
         # test upgrade with failed upgrade annotation
         pg_patch_version_highest_version = {
@@ -1765,11 +1771,19 @@ class EndToEndTestCase(unittest.TestCase):
             k8s.update_config(enable_owner_refs)
             self.eventuallyEqual(lambda: k8s.get_operator_state(), {"0": "idle"}, "Operator does not get in sync")
 
-            time.sleep(5)  # wait for the operator to sync the cluster and update resources
+            def owner_references_are_set(cluster, namespace='default', inverse=False):
+                try:
+                    return self.check_cluster_child_resources_owner_references(cluster, namespace, inverse)
+                except ApiException:
+                    return False
 
             # check if child resources were updated with owner references
-            self.assertTrue(self.check_cluster_child_resources_owner_references(cluster_name, self.test_namespace), "Owner references not set on all child resources of {}".format(cluster_name))
-            self.assertTrue(self.check_cluster_child_resources_owner_references(default_test_cluster), "Owner references not set on all child resources of {}".format(default_test_cluster))
+            self.eventuallyTrue(
+                lambda: owner_references_are_set(cluster_name, self.test_namespace),
+                "Owner references not set on all child resources of {}".format(cluster_name))
+            self.eventuallyTrue(
+                lambda: owner_references_are_set(default_test_cluster),
+                "Owner references not set on all child resources of {}".format(default_test_cluster))
 
             # delete the new cluster to test owner references
             # and also to make k8s_api.get_operator_state work better in subsequent tests
@@ -1800,10 +1814,10 @@ class EndToEndTestCase(unittest.TestCase):
             k8s.update_config(disable_owner_refs)
             self.eventuallyEqual(lambda: k8s.get_operator_state(), {"0": "idle"}, "Operator does not get in sync")
 
-            time.sleep(5)  # wait for the operator to remove owner references
-
             # check if child resources were updated without Postgresql owner references
-            self.assertTrue(self.check_cluster_child_resources_owner_references(default_test_cluster, "default", True), "Owner references still present on some child resources of {}".format(default_test_cluster))
+            self.eventuallyTrue(
+                lambda: owner_references_are_set(default_test_cluster, inverse=True),
+                "Owner references still present on some child resources of {}".format(default_test_cluster))
 
         except timeout_decorator.TimeoutError:
             print('Operator log: {}'.format(k8s.get_operator_log()))
