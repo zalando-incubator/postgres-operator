@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/zalando/postgres-operator/v2/mocks"
 	acidv1 "github.com/zalando/postgres-operator/v2/pkg/apis/acid.zalan.do/v1"
 	fakeacidv1 "github.com/zalando/postgres-operator/v2/pkg/generated/clientset/versioned/fake"
@@ -35,6 +37,53 @@ import (
 var patroniLogger = logrus.New().WithField("test", "patroni")
 var acidClientSet = fakeacidv1.NewSimpleClientset()
 var clientSet = fake.NewSimpleClientset()
+
+func TestSyncPreparedSchemasRetriesAfterTransactionFailure(t *testing.T) {
+	connector := &mockConnector{
+		failQuery:     "ALTER DEFAULT PRIVILEGES",
+		failQueryLeft: 1,
+		rows:          &fakeRows{columns: []string{"dbschema"}},
+	}
+	cluster, db := newClusterWithMockDB(t, connector)
+	defer db.Close()
+
+	preparedSchemas := map[string]acidv1.PreparedSchema{
+		"data": {
+			DefaultRoles: util.True(),
+		},
+	}
+	cluster.Spec.PreparedDatabases["app"] = acidv1.PreparedDatabase{
+		PreparedSchemas: preparedSchemas,
+	}
+
+	firstErr := cluster.syncPreparedSchemas("app", preparedSchemas)
+	require.Error(t, firstErr)
+	require.Contains(t, firstErr.Error(), "simulated ACL failure")
+	require.Equal(t, 1, connector.beginCalls)
+	require.Equal(t, 0, connector.commitCalls)
+	require.Equal(t, 1, connector.rollbackCalls)
+
+	// the mock keeps reporting the schema as absent, as it would after the failed
+	// transaction rolled back, so a later reconciliation retries creation.
+	retryErr := cluster.syncPreparedSchemas("app", preparedSchemas)
+	require.NoError(t, retryErr)
+	require.Equal(t, 2, connector.beginCalls)
+	require.Equal(t, 1, connector.commitCalls)
+	require.Equal(t, 1, connector.rollbackCalls)
+
+	createAttempts := 0
+	aclAttempts := 0
+	for _, query := range connector.execQueries {
+		if strings.Contains(query, `CREATE SCHEMA IF NOT EXISTS "data"`) {
+			createAttempts++
+		}
+		if strings.Contains(query, "ALTER DEFAULT PRIVILEGES") {
+			aclAttempts++
+		}
+	}
+	require.Equal(t, 2, createAttempts, "retry should recreate the rolled-back schema")
+	require.Equal(t, 4, aclAttempts, "the failed ACL batch should be retried with all remaining ACL batches")
+}
 
 func newMockPod(ip string) *v1.Pod {
 	return &v1.Pod{

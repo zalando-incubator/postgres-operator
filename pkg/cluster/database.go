@@ -468,13 +468,22 @@ func (c *Cluster) execCreateDatabaseSchema(databaseName, schemaName, dbOwner, sc
 		return nil
 	}
 	c.logger.Infof("%s %q owner %q", doing, schemaName, schemaOwner)
-	if _, err := c.pgDb.Exec(fmt.Sprintf(statement, dbOwner, schemaName, schemaOwner)); err != nil {
+
+	tx, err := c.pgDb.Begin()
+	if err != nil {
+		return fmt.Errorf("could not start transaction for %s: %v", operation, err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(fmt.Sprintf(statement, dbOwner, schemaName, schemaOwner)); err != nil {
 		return fmt.Errorf("could not execute %s: %v", operation, err)
 	}
 
 	// set default privileges for schema
 	// the schemaOwner defines them for global database roles
-	c.execAlterSchemaDefaultPrivileges(schemaName, schemaOwner, databaseName)
+	if err := c.execAlterSchemaDefaultPrivileges(tx, schemaName, schemaOwner, databaseName); err != nil {
+		return fmt.Errorf("could not set default privileges for schema %q: %v", schemaName, err)
+	}
 
 	// if schemaOwner and dbOwner differ we know that <databaseName>_<schemaName> default roles were created
 	if schemaOwner != dbOwner {
@@ -482,7 +491,9 @@ func (c *Cluster) execCreateDatabaseSchema(databaseName, schemaName, dbOwner, sc
 
 		// define schema privileges of <databaseName>_<schemaName>_owner_user for global roles, too
 		if defaultUsers {
-			c.execAlterSchemaDefaultPrivileges(schemaName, schemaOwner+constants.UserRoleNameSuffix, databaseName)
+			if err := c.execAlterSchemaDefaultPrivileges(tx, schemaName, schemaOwner+constants.UserRoleNameSuffix, databaseName); err != nil {
+				return fmt.Errorf("could not set default privileges for schema %q: %v", schemaName, err)
+			}
 		}
 
 		// collect all possible owner roles and define default schema privileges
@@ -490,13 +501,21 @@ func (c *Cluster) execCreateDatabaseSchema(databaseName, schemaName, dbOwner, sc
 		owners := c.getOwnerRoles(databaseName, c.Spec.PreparedDatabases[databaseName].DefaultUsers)
 		owners = append(owners, c.getOwnerRoles(databaseName+"_"+schemaName, defaultUsers)...)
 		for _, owner := range owners {
-			c.execAlterSchemaDefaultPrivileges(schemaName, owner, databaseName+"_"+schemaName)
+			if err := c.execAlterSchemaDefaultPrivileges(tx, schemaName, owner, databaseName+"_"+schemaName); err != nil {
+				return fmt.Errorf("could not set default privileges for schema %q: %v", schemaName, err)
+			}
 		}
 	} else {
 		// define schema privileges of <databaseName>_owner_user for global roles, too
 		if c.Spec.PreparedDatabases[databaseName].DefaultUsers {
-			c.execAlterSchemaDefaultPrivileges(schemaName, schemaOwner+constants.UserRoleNameSuffix, databaseName)
+			if err := c.execAlterSchemaDefaultPrivileges(tx, schemaName, schemaOwner+constants.UserRoleNameSuffix, databaseName); err != nil {
+				return fmt.Errorf("could not set default privileges for schema %q: %v", schemaName, err)
+			}
 		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("could not commit transaction for %s: %v", operation, err)
 	}
 
 	return nil
@@ -510,15 +529,17 @@ func (c *Cluster) databaseSchemaNameValid(schemaName string) bool {
 	return true
 }
 
-func (c *Cluster) execAlterSchemaDefaultPrivileges(schemaName, owner, rolePrefix string) error {
-	if _, err := c.pgDb.Exec(fmt.Sprintf(schemaDefaultPrivilegesSQL, owner,
+func (c *Cluster) execAlterSchemaDefaultPrivileges(tx *sql.Tx, schemaName, owner, rolePrefix string) error {
+	_, err := tx.Exec(fmt.Sprintf(schemaDefaultPrivilegesSQL, owner,
 		schemaName, rolePrefix+constants.ReaderRoleNameSuffix, rolePrefix+constants.WriterRoleNameSuffix, // schema
 		schemaName, rolePrefix+constants.ReaderRoleNameSuffix, // tables
 		schemaName, rolePrefix+constants.ReaderRoleNameSuffix, // sequences
 		schemaName, rolePrefix+constants.WriterRoleNameSuffix, // tables
 		schemaName, rolePrefix+constants.WriterRoleNameSuffix, // sequences
 		schemaName, rolePrefix+constants.ReaderRoleNameSuffix, rolePrefix+constants.WriterRoleNameSuffix, // types
-		schemaName, rolePrefix+constants.ReaderRoleNameSuffix, rolePrefix+constants.WriterRoleNameSuffix)); err != nil { // functions
+		schemaName, rolePrefix+constants.ReaderRoleNameSuffix, rolePrefix+constants.WriterRoleNameSuffix))
+
+	if err != nil {
 		return fmt.Errorf("could not alter default privileges for database schema %s: %v", schemaName, err)
 	}
 
