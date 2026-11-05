@@ -734,6 +734,28 @@ func generateContainer(
 	}
 }
 
+// restrictContainerSecurityContext disallows privilege escalation, drops all
+// capabilities and sets the RuntimeDefault seccomp profile, unless the
+// container runs privileged. The security context is copied, as it may be
+// shared with the operator configuration.
+func restrictContainerSecurityContext(container *v1.Container) {
+	securityContext := &v1.SecurityContext{}
+	if container.SecurityContext != nil {
+		securityContext = container.SecurityContext.DeepCopy()
+	}
+	if securityContext.Privileged != nil && *securityContext.Privileged {
+		return
+	}
+
+	securityContext.AllowPrivilegeEscalation = util.False()
+	if securityContext.Capabilities == nil {
+		securityContext.Capabilities = &v1.Capabilities{}
+	}
+	securityContext.Capabilities.Drop = []v1.Capability{"ALL"}
+	securityContext.SeccompProfile = &v1.SeccompProfile{Type: v1.SeccompProfileTypeRuntimeDefault}
+	container.SecurityContext = securityContext
+}
+
 func (c *Cluster) generateSidecarContainers(sidecars []acidv1.Sidecar,
 	defaultResources acidv1.Resources, startIndex int) ([]v1.Container, error) {
 
@@ -862,6 +884,16 @@ func (c *Cluster) generatePodTemplate(
 
 	if c.Spec.SpiloFSGroup != nil {
 		securityContext.FSGroup = c.Spec.SpiloFSGroup
+	}
+
+	if securityContext.RunAsUser != nil {
+		var isNoRootPid = (*securityContext.RunAsUser > int64(0))
+		securityContext.RunAsNonRoot = &isNoRootPid
+		if isNoRootPid {
+			for i := range containers {
+				restrictContainerSecurityContext(&containers[i])
+			}
+		}
 	}
 
 	podSpec := v1.PodSpec{

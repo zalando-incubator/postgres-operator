@@ -525,6 +525,13 @@ configuration they are grouped under the `kubernetes` key.
   sets the user ID which should be used in the container to run the process.
   This must be set to run the container without root. By default the container
   runs with root. This option only works for Spilo versions >= 1.6-p3.
+  With a non-root user ID, the pod also gets `runAsNonRoot: true` and the
+  non-privileged Spilo and sidecar containers get `allowPrivilegeEscalation: false`,
+  `capabilities.drop: ["ALL"]` and the `RuntimeDefault` seccomp profile, as
+  required by the Pod Security Standards `restricted` profile. On OpenShift the
+  SecurityContextConstraints of the pod must allow the `runtime/default` seccomp
+  profile (e.g. `restricted-v2` or `nonroot-v2`), SCCs without `seccompProfiles`
+  such as `anyuid` reject the pod.
 
 * **spilo_runasgroup**
   sets the group ID which should be used in the container to run the process.
