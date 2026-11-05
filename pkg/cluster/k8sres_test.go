@@ -1448,6 +1448,80 @@ func TestStandbyEnv(t *testing.T) {
 	}
 }
 
+func TestEKSPodIdentityEnv(t *testing.T) {
+	findEnv := func(envs []v1.EnvVar, name string) *v1.EnvVar {
+		for i := range envs {
+			if envs[i].Name == name {
+				return &envs[i]
+			}
+		}
+		return nil
+	}
+
+	tests := []struct {
+		subTest  string
+		opConfig config.Config
+		expected map[string]string
+		absent   []string
+	}{
+		{
+			subTest:  "disabled by default",
+			opConfig: config.Config{AWSRegion: "eu-west-1"},
+			absent:   []string{"SPILO_PROVIDER", "CLONE_AWS_REGION", "STANDBY_AWS_REGION"},
+		},
+		{
+			subTest:  "pod identity sets provider and clone/standby region only",
+			opConfig: config.Config{AWSRegion: "eu-west-1", EnableEKSPodIdentity: true},
+			expected: map[string]string{
+				"SPILO_PROVIDER":     "aws",
+				"CLONE_AWS_REGION":   "eu-west-1",
+				"STANDBY_AWS_REGION": "eu-west-1",
+			},
+			absent: []string{"CLONE_AWS_ROLE_ARN", "STANDBY_AWS_ROLE_ARN"},
+		},
+		{
+			subTest: "IRSA takes precedence over pod identity",
+			opConfig: config.Config{
+				AWSRegion:            "eu-west-1",
+				EnableEKSPodIdentity: true,
+				IRSARoleARN:          "arn:aws:iam::123456789012:role/postgres-pod-role",
+			},
+			expected: map[string]string{
+				"SPILO_PROVIDER":       "aws",
+				"CLONE_AWS_ROLE_ARN":   "arn:aws:iam::123456789012:role/postgres-pod-role",
+				"STANDBY_AWS_ROLE_ARN": "arn:aws:iam::123456789012:role/postgres-pod-role",
+				"CLONE_AWS_REGION":     "eu-west-1",
+				"STANDBY_AWS_REGION":   "eu-west-1",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		c := newMockCluster(tt.opConfig)
+
+		spiloEnvs, err := c.generateSpiloPodEnvVars(&acidv1.PostgresSpec{}, types.UID("0000"), exampleSpiloConfig)
+		assert.NoError(t, err)
+		envs := append(spiloEnvs, c.generateCloneEnvironment(&acidv1.CloneDescription{ClusterName: "source", EndTimestamp: "somewhen"})...)
+		envs = append(envs, c.generateStandbyEnvironment(&acidv1.StandbyDescription{S3WalPath: "s3://some/path/"})...)
+
+		for name, value := range tt.expected {
+			env := findEnv(envs, name)
+			if env == nil {
+				t.Errorf("%s %s: expected env %s, not found", t.Name(), tt.subTest, name)
+				continue
+			}
+			if env.Value != value {
+				t.Errorf("%s %s: expected env %s value %s, have %s instead", t.Name(), tt.subTest, name, value, env.Value)
+			}
+		}
+		for _, name := range tt.absent {
+			if env := findEnv(envs, name); env != nil {
+				t.Errorf("%s %s: expected no env %s, have %q", t.Name(), tt.subTest, name, env.Value)
+			}
+		}
+	}
+}
+
 func TestNodeAffinity(t *testing.T) {
 	var err error
 	var spec acidv1.PostgresSpec

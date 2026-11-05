@@ -1135,6 +1135,32 @@ the EC2 metadata credentials used by kube2iam. Both `kube_iam_role` and
 `irsa_role_arn` can coexist during a migration — existing pods retain the
 kube2iam annotation until they are rotated, at which point only IRSA is used.
 
+With [EKS Pod Identity](https://docs.aws.amazon.com/eks/latest/userguide/pod-identities.html)
+the role is bound to the pod service account by a Pod Identity association
+(`aws eks create-pod-identity-association`), there is no annotation to set.
+Enable `enable_eks_pod_identity` so that the operator configures Spilo for AWS
+and passes the region to clone and standby clusters:
+
+**OperatorConfiguration**
+
+```yaml
+apiVersion: "acid.zalan.do/v1"
+kind: OperatorConfiguration
+metadata:
+  name: postgresql-operator-configuration
+configuration:
+  aws_or_gcp:
+    aws_region: eu-central-1
+    enable_eks_pod_identity: true
+    wal_s3_bucket: your-backup-path
+```
+
+The EKS Pod Identity webhook injects `AWS_CONTAINER_CREDENTIALS_FULL_URI` and
+`AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE` into the pods, Spilo writes them to
+the WAL-G environment of the cluster and of its clone / standby sources. This
+needs a Spilo image with Pod Identity support: older images ignore these
+variables and WAL-G falls back to the EC2 instance role of the node.
+
 The referenced IAM role should contain the following privileges to make sure
 Postgres can send compressed WAL files to the given S3 bucket:
 
@@ -1246,6 +1272,7 @@ aws_or_gcp:
   # aws_region: eu-central-1
   # kube_iam_role: ""
   # irsa_role_arn: ""
+  # enable_eks_pod_identity: false
   # log_s3_bucket: ""
   # wal_s3_bucket: ""
   wal_gs_bucket: "postgres-backups-bucket-28302F2"  # name of bucket on where to save the WAL-E logs
@@ -1296,6 +1323,7 @@ aws_or_gcp:
   # aws_region: eu-central-1
   # kube_iam_role: ""
   # irsa_role_arn: ""
+  # enable_eks_pod_identity: false
   # log_s3_bucket: ""
   # wal_s3_bucket: ""
   wal_gs_bucket: "postgres-backups-bucket-28302F2"  # name of bucket on where to save the WAL-E logs

@@ -1101,7 +1101,7 @@ func (c *Cluster) generateSpiloPodEnvVars(
 		opConfigEnvVars = append(opConfigEnvVars, v1.EnvVar{Name: "LOG_BUCKET_SCOPE_PREFIX", Value: ""})
 	}
 
-	if c.OpConfig.IRSARoleARN != "" {
+	if c.OpConfig.IRSARoleARN != "" || c.OpConfig.EnableEKSPodIdentity {
 		opConfigEnvVars = append(opConfigEnvVars, v1.EnvVar{Name: "SPILO_PROVIDER", Value: "aws"})
 	}
 
@@ -2231,6 +2231,9 @@ func (c *Cluster) generateCloneEnvironment(description *acidv1.CloneDescription)
 		result = append(result, v1.EnvVar{Name: "CLONE_AWS_ROLE_ARN", Value: c.OpConfig.IRSARoleARN})
 		result = append(result, v1.EnvVar{Name: "CLONE_AWS_WEB_IDENTITY_TOKEN_FILE", Value: "/var/run/secrets/eks.amazonaws.com/serviceaccount/token"})
 		result = append(result, v1.EnvVar{Name: "CLONE_AWS_REGION", Value: c.OpConfig.AWSRegion})
+	} else if c.OpConfig.EnableEKSPodIdentity {
+		// AWS_CONTAINER_* credentials are injected by EKS, Spilo copies them to every WAL-G envdir
+		result = append(result, v1.EnvVar{Name: "CLONE_AWS_REGION", Value: c.OpConfig.AWSRegion})
 	}
 
 	return result
@@ -2281,6 +2284,8 @@ func (c *Cluster) generateStandbyEnvironment(description *acidv1.StandbyDescript
 	if c.OpConfig.IRSARoleARN != "" {
 		result = append(result, v1.EnvVar{Name: "STANDBY_AWS_ROLE_ARN", Value: c.OpConfig.IRSARoleARN})
 		result = append(result, v1.EnvVar{Name: "STANDBY_AWS_WEB_IDENTITY_TOKEN_FILE", Value: "/var/run/secrets/eks.amazonaws.com/serviceaccount/token"})
+		result = append(result, v1.EnvVar{Name: "STANDBY_AWS_REGION", Value: c.OpConfig.AWSRegion})
+	} else if c.OpConfig.EnableEKSPodIdentity {
 		result = append(result, v1.EnvVar{Name: "STANDBY_AWS_REGION", Value: c.OpConfig.AWSRegion})
 	}
 

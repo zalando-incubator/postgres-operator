@@ -66,6 +66,8 @@ spec:
                   aws_region:
                     default: eu-central-1
                     type: string
+                  enable_eks_pod_identity:
+                    type: boolean
                   gcp_credentials:
                     type: string
                   irsa_role_arn:

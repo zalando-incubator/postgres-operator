@@ -358,6 +358,8 @@ configAwsOrGcp:
 
   # Full ARN for IRSA (IAM Roles for Service Accounts) on EKS
   # irsa_role_arn: ""
+  # Credentials from an EKS Pod Identity association of the pod service account
+  # enable_eks_pod_identity: false
 
   # S3 bucket to use for shipping postgres daily logs
   # log_s3_bucket: ""

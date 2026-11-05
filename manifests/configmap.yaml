@@ -78,6 +78,7 @@ data:
   # inherited_labels: application,environment
   # kube_iam_role: ""
   # irsa_role_arn: ""
+  # enable_eks_pod_identity: "false"
   kubernetes_use_configmaps: "false"
   # log_s3_bucket: ""
   # logical_backup_azure_storage_account_name: ""
