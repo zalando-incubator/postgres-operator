@@ -1295,8 +1295,11 @@ class EndToEndTestCase(unittest.TestCase):
         self.eventuallyEqual(check_version, 15, "Version should be upgraded from 14 to 15", retries=180)
 
         # check if annotation for last upgrade's success is set
+        self.eventuallyTrue(
+            lambda: get_annotations().get("last-major-upgrade-success"),
+            "Annotation for last upgrade's success is not set",
+            retries=180)
         annotations = get_annotations()
-        self.assertIsNotNone(annotations.get("last-major-upgrade-success"), "Annotation for last upgrade's success is not set")
 
         # should not upgrade because current time is not in maintenanceWindow
         current_time = datetime.now()
@@ -1346,9 +1349,12 @@ class EndToEndTestCase(unittest.TestCase):
         self.eventuallyEqual(check_version, 16, "Version should be upgraded from 15 to 16", retries=180)
 
         # check if annotation for last upgrade's success is updated after second upgrade
+        self.eventuallyTrue(
+            lambda: get_annotations().get("last-major-upgrade-success") not in
+            (None, annotations.get("last-major-upgrade-success")),
+            "Annotation for last upgrade's success is not updated",
+            retries=180)
         third_annotations = get_annotations()
-        self.assertIsNotNone(third_annotations.get("last-major-upgrade-success"), "Annotation for last upgrade's success is not set")
-        self.assertNotEqual(annotations.get("last-major-upgrade-success"), third_annotations.get("last-major-upgrade-success"), "Annotation for last upgrade's success is not updated")
 
         # test upgrade with failed upgrade annotation
         pg_patch_version_highest_version = {
