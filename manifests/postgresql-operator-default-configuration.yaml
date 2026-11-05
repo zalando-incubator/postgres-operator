@@ -69,6 +69,7 @@ configuration:
     enable_pod_antiaffinity: false
     enable_pod_disruption_budget: true
     enable_readiness_probe: false
+    enable_rolling_update_readiness_check: false
     enable_secrets_deletion: true
     enable_sidecars: true
     # ignored_annotations:
@@ -118,6 +119,7 @@ configuration:
     pod_service_account_name: postgres-pod
     # pod_service_account_role_binding_definition: ""
     pod_terminate_grace_period: 5m
+    rolling_update_min_ready_time: 30s
     secret_name_template: "{username}.{cluster}.credentials.{tprkind}.{tprgroup}"
     share_pgsocket_with_sidecars: false
     spilo_allow_privilege_escalation: true

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -537,6 +538,151 @@ func TestAllPodsRunning(t *testing.T) {
 			result := cluster.allPodsRunning(tt.pods)
 			if result != tt.expected {
 				t.Errorf("allPodsRunning() = %v, expected %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRecreatePodsReadinessCheck(t *testing.T) {
+	ready := v1.PodStatus{Conditions: []v1.PodCondition{{Type: v1.PodReady, Status: v1.ConditionTrue, LastTransitionTime: metav1.NewTime(time.Now().Add(-time.Hour))}}}
+	justReady := v1.PodStatus{Conditions: []v1.PodCondition{{Type: v1.PodReady, Status: v1.ConditionTrue, LastTransitionTime: metav1.Now()}}}
+	notReady := v1.PodStatus{Conditions: []v1.PodCondition{{Type: v1.PodReady, Status: v1.ConditionFalse}}}
+	// a crashlooping container without readiness probe is ready for a moment after every restart
+	crashLooping := *ready.DeepCopy()
+	crashLooping.ContainerStatuses = []v1.ContainerStatus{{Name: "exporter", RestartCount: 1}}
+
+	for _, tt := range []struct {
+		name              string
+		readinessCheck    bool
+		roles             []string
+		firstPodStatus    v1.PodStatus
+		failedGets        int
+		expectedDeletions int
+		expectedError     string
+	}{
+		{name: "rotates all pods when they become available", readinessCheck: true, roles: []string{"replica", "replica"}, firstPodStatus: ready, expectedDeletions: 2},
+		{name: "retries when the pod cannot be read", readinessCheck: true, roles: []string{"replica", "replica"}, firstPodStatus: ready, failedGets: 1, expectedDeletions: 2},
+		{name: "stops after a crashlooping pod", readinessCheck: true, roles: []string{"replica", "replica"}, firstPodStatus: crashLooping, expectedDeletions: 1, expectedError: `container "exporter" has restarted 1 time(s)`},
+		{name: "stops after a pod that does not become ready", readinessCheck: true, roles: []string{"replica", "replica"}, firstPodStatus: notReady, expectedDeletions: 1, expectedError: "did not become available within"},
+		{name: "stops after a pod that is ready for less than the min ready time", readinessCheck: true, roles: []string{"replica", "replica"}, firstPodStatus: justReady, expectedDeletions: 1, expectedError: "did not become available within"},
+		{name: "reports a crashlooping old master", readinessCheck: true, roles: []string{"master"}, firstPodStatus: crashLooping, expectedDeletions: 1, expectedError: `could not recreate old master pod "default/acid-test-cluster-1"`},
+		{name: "ignores readiness when disabled", readinessCheck: false, roles: []string{"replica", "replica"}, firstPodStatus: crashLooping, expectedDeletions: 2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			pods := make([]v1.Pod, 0)
+			objects := make([]runtime.Object, 0)
+			for i, role := range tt.roles {
+				status := ready
+				if i == 0 {
+					status = tt.firstPodStatus
+				}
+				pod := v1.Pod{
+					ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("acid-test-cluster-%d", i+1), Namespace: "default", Labels: map[string]string{"spilo-role": role}},
+					Status:     status,
+				}
+				pods = append(pods, pod)
+				objects = append(objects, pod.DeepCopy())
+			}
+			client := k8sfake.NewSimpleClientset(objects...)
+			opConfig := config.Config{}
+			opConfig.PodRoleLabel = "spilo-role"
+			opConfig.PodDeletionWaitTimeout = &metav1.Duration{Duration: time.Second}
+			opConfig.PodLabelWaitTimeout = &metav1.Duration{Duration: time.Second}
+			opConfig.ResourceCheckInterval = &metav1.Duration{Duration: 10 * time.Millisecond}
+			opConfig.ResourceCheckTimeout = &metav1.Duration{Duration: 50 * time.Millisecond}
+			opConfig.EnableRollingUpdateReadinessCheck = tt.readinessCheck
+			opConfig.RollingUpdateMinReadyTime = &metav1.Duration{Duration: time.Minute}
+			c := New(Config{OpConfig: opConfig}, k8sutil.KubernetesClient{PodsGetter: client.CoreV1()},
+				acidv1.Postgresql{ObjectMeta: metav1.ObjectMeta{Name: "acid-test-cluster", Namespace: "default"}}, logger, record.NewFakeRecorder(2))
+			failedGets := 0
+			client.PrependReactor("get", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+				if failedGets < tt.failedGets {
+					failedGets++
+					return true, nil, fmt.Errorf("connection refused")
+				}
+				return false, nil, nil
+			})
+			deletions := 0
+			client.PrependReactor("delete", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+				deletions++
+				podName := spec.NamespacedName{Namespace: action.GetNamespace(), Name: action.(k8stesting.DeleteAction).GetName()}
+				ch := c.podSubscribers[podName]
+				for i := range pods {
+					if pods[i].Name == podName.Name {
+						recreated := &pods[i]
+						go func() {
+							ch <- PodEvent{EventType: PodEventDelete, PrevPod: recreated}
+							ch <- PodEvent{EventType: PodEventAdd, CurPod: recreated}
+						}()
+					}
+				}
+				return true, nil, nil
+			})
+
+			err := c.recreatePods(pods, nil)
+			if tt.expectedError == "" {
+				if err != nil {
+					t.Fatalf("rolling update failed: %v", err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), tt.expectedError) {
+				t.Fatalf("expected error containing %q, got %v", tt.expectedError, err)
+			}
+			if deletions != tt.expectedDeletions {
+				t.Fatalf("expected %d pod deletions, got %d", tt.expectedDeletions, deletions)
+			}
+		})
+	}
+}
+
+func TestNotAvailableRotatedPods(t *testing.T) {
+	opConfig := config.Config{}
+	opConfig.RollingUpdateMinReadyTime = &metav1.Duration{Duration: time.Minute}
+	c := New(Config{OpConfig: opConfig}, k8sutil.KubernetesClient{}, acidv1.Postgresql{}, logger, eventRecorder)
+	// readyFor of 0 means the pod is not ready
+	podReadyFor := func(name string, readyFor time.Duration, annotation string) v1.Pod {
+		pod := v1.Pod{ObjectMeta: metav1.ObjectMeta{Name: name}}
+		if readyFor > 0 {
+			pod.Status.Conditions = []v1.PodCondition{{
+				Type:               v1.PodReady,
+				Status:             v1.ConditionTrue,
+				LastTransitionTime: metav1.NewTime(time.Now().Add(-readyFor)),
+			}}
+		}
+		if annotation != "" {
+			pod.Annotations = map[string]string{rollingUpdatePodAnnotationKey: annotation}
+		}
+		return pod
+	}
+
+	for _, tt := range []struct {
+		name     string
+		pods     []v1.Pod
+		expected []string
+	}{
+		{
+			name:     "all rotated pods available",
+			pods:     []v1.Pod{podReadyFor("pod-0", time.Hour, ""), podReadyFor("pod-1", 0, "true")},
+			expected: []string{},
+		},
+		{
+			name:     "rotated pod not ready",
+			pods:     []v1.Pod{podReadyFor("pod-0", time.Hour, "true"), podReadyFor("pod-1", 0, ""), podReadyFor("pod-2", time.Hour, "")},
+			expected: []string{"pod-1"},
+		},
+		{
+			name:     "rotated pod ready for less than the min ready time",
+			pods:     []v1.Pod{podReadyFor("pod-0", 10*time.Second, ""), podReadyFor("pod-1", time.Hour, "")},
+			expected: []string{"pod-0"},
+		},
+		{
+			name:     "pods pending lazy upgrade are not rotated yet",
+			pods:     []v1.Pod{podReadyFor("pod-0", 0, rollingUpdateLazyUpgradeValue)},
+			expected: []string{},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if result := c.notAvailableRotatedPods(tt.pods); !slices.Equal(result, tt.expected) {
+				t.Errorf("notAvailableRotatedPods() = %v, expected %v", result, tt.expected)
 			}
 		})
 	}

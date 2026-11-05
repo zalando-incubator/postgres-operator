@@ -738,6 +738,14 @@ func (c *Cluster) syncStatefulSet() error {
 				}
 			}
 		}
+		// do not continue a rolling update while an already rotated pod is not ready,
+		// e.g. because the new statefulset spec contains a broken image
+		if c.OpConfig.EnableRollingUpdateReadinessCheck {
+			if notAvailablePods := c.notAvailableRotatedPods(pods); len(notAvailablePods) > 0 {
+				isSafeToRecreatePods = false
+				postponeReasons = append(postponeReasons, fmt.Sprintf("already rotated pod(s) not available: %s", strings.Join(notAvailablePods, ", ")))
+			}
+		}
 		if isSafeToRecreatePods && len(podsToRecreate) > 0 {
 			c.logger.Info("performing rolling update")
 			c.eventRecorder.Event(c.GetReference(), v1.EventTypeNormal, "Update", "Performing rolling update")

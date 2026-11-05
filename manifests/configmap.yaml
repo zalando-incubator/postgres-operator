@@ -58,6 +58,7 @@ data:
   enable_readiness_probe: "false"
   enable_replica_load_balancer: "false"
   enable_replica_pooler_load_balancer: "false"
+  enable_rolling_update_readiness_check: "false"
   enable_secrets_deletion: "true"
   enable_shm_volume: "true"
   enable_sidecars: "true"
@@ -151,6 +152,7 @@ data:
   resource_check_timeout: 10m
   resync_period: 30m
   ring_log_lines: "100"
+  rolling_update_min_ready_time: 30s
   role_deletion_suffix: "_deleted"
   secret_name_template: "{username}.{cluster}.credentials.{tprkind}.{tprgroup}"
   share_pgsocket_with_sidecars: "false"

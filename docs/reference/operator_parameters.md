@@ -590,6 +590,22 @@ configuration they are grouped under the `kubernetes` key.
   to avoid unnecessary waiting times in case of multiple instances failing.
   The default is `false`.
 
+* **enable_rolling_update_readiness_check**
+  by default, the operator rotates the next pod of a rolling update as soon as
+  the recreated pod has the expected role label. When enabled, the operator also
+  waits until the recreated pod has been ready for `rolling_update_min_ready_time`
+  (checking every `resource_check_interval` for up to `resource_check_timeout`)
+  and stops the rolling update if one of its containers restarts or the timeout
+  expires, e.g. because of a broken sidecar image. On later syncs, the remaining
+  pods are not rotated while any already rotated pod has not been ready for
+  `rolling_update_min_ready_time`. The default is `false`.
+
+* **rolling_update_min_ready_time**
+  how long a recreated pod has to be ready without interruption before the
+  rolling update continues, when `enable_rolling_update_readiness_check` is
+  enabled. A container that crashes resets the time, so a sidecar that crashes
+  shortly after starting stops the rolling update. The default is `30s`.
+
 * **storage_resize_mode**
   defines how operator handles the difference between the requested volume size and
     the actual size. Available options are:

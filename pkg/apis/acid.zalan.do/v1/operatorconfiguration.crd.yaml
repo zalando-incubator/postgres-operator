@@ -215,6 +215,8 @@ spec:
                     type: boolean
                   enable_readiness_probe:
                     type: boolean
+                  enable_rolling_update_readiness_check:
+                    type: boolean
                   enable_secrets_deletion:
                     default: true
                     type: boolean
@@ -479,6 +481,11 @@ spec:
                     default: 5m
                     description: Postgres pods are terminated forcefully after this
                       timeout
+                    type: string
+                  rolling_update_min_ready_time:
+                    default: 30s
+                    description: how long a recreated pod has to be ready before a
+                      rolling update continues
                     type: string
                   secret_name_template:
                     default: '{username}.{cluster}.credentials.{tprkind}.{tprgroup}'
