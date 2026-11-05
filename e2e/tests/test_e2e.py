@@ -1286,7 +1286,8 @@ class EndToEndTestCase(unittest.TestCase):
         }
         k8s.api.custom_objects_api.patch_namespaced_custom_object(
             "acid.zalan.do", "v1", "default", "postgresqls", "acid-upgrade-test", pg_patch_version_higher_version)
-        self.eventuallyEqual(lambda: k8s.get_operator_state(), {"0": "idle"}, "Operator does not get in sync")
+        self.eventuallyEqual(lambda: k8s.get_operator_state(), {"0": "idle"}, "Operator does not get in sync",
+                             retries=180)
 
         k8s.wait_for_pod_failover(master_nodes, 'spilo-role=replica,' + cluster_label)
         k8s.wait_for_pod_start('spilo-role=master,' + cluster_label)
@@ -2412,6 +2413,19 @@ class EndToEndTestCase(unittest.TestCase):
         self.assertNotEqual(master_nodes, [])
         self.assertNotEqual(replica_nodes, [])
 
+        # Keep the operator running if it shares the master's node.
+        operator_pod = k8s.get_operator_pod()
+        operator_tolerations = [
+            k8s.api.k8s_client.sanitize_for_serialization(toleration)
+            for toleration in (operator_pod.spec.tolerations or [])
+        ]
+        operator_tolerations.append({
+            "key": "postgres",
+            "operator": "Exists",
+            "effect": "NoExecute"
+        })
+        k8s.patch_pod({"spec": {"tolerations": operator_tolerations}}, operator_pod.metadata.name)
+
         # taint node with postgres=:NoExecute to force failover
         body = {
             "spec": {
@@ -2435,7 +2449,7 @@ class EndToEndTestCase(unittest.TestCase):
         try:
             k8s.update_config(patch_toleration_config, step="allow tainted nodes")
             self.eventuallyEqual(lambda: k8s.get_operator_state(), {"0": "idle"},
-                        "Operator does not get in sync")
+                        "Operator does not get in sync", retries=180)
 
             self.eventuallyEqual(lambda: k8s.count_running_pods(), 2, "No 2 pods running")
             self.eventuallyEqual(lambda: len(k8s.get_patroni_running_members("acid-minimal-cluster-0")), 2, "Postgres status did not enter running")
