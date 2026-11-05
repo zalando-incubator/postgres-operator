@@ -85,6 +85,7 @@ type KubernetesMetaConfiguration struct {
 	SpiloRunAsUser                *int64   `json:"spilo_runasuser,omitempty"`
 	SpiloRunAsGroup               *int64   `json:"spilo_runasgroup,omitempty"`
 	SpiloFSGroup                  *int64   `json:"spilo_fsgroup,omitempty"`
+	SpiloRunAsNonRoot             *bool    `json:"spilo_run_as_non_root,omitempty"`
 	AdditionalPodCapabilities     []string `json:"additional_pod_capabilities,omitempty"`
 	WatchedNamespace              string   `json:"watched_namespace,omitempty"`
 	// +kubebuilder:default="postgres-{cluster}-pdb"

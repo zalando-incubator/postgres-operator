@@ -537,6 +537,16 @@ configuration they are grouped under the `kubernetes` key.
   non-root process, but requires a custom Spilo image. Note the FSGroup of a Pod
   cannot be changed without recreating a new Pod.
 
+* **spilo_run_as_non_root**
+  sets `runAsNonRoot` in the pod and the Spilo container security context.
+  Useful in environments where Pod Security standards or mutating admission
+  webhooks enforce running as non-root: without this option such webhooks
+  patch the operator-generated StatefulSet after creation, so the operator
+  detects "pod changes" on every sync and keeps triggering rolling updates
+  with switchovers. Unset by default: `runAsNonRoot` is omitted from the
+  generated pod spec unless this option (or the cluster manifest option
+  `spiloRunAsNonRoot`) is defined.
+
 * **spilo_privileged**
   whether the Spilo container should run in privileged mode. Privileged mode is
   used for AWS volume resizing and not required if you don't need that

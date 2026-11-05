@@ -2892,6 +2892,8 @@ spec:
               spiloRunAsGroup:
                 format: int64
                 type: integer
+              spiloRunAsNonRoot:
+                type: boolean
               spiloRunAsUser:
                 format: int64
                 type: integer

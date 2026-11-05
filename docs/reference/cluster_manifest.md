@@ -85,6 +85,16 @@ These parameters are grouped directly under  the `spec` key in the manifest.
   requires a custom Spilo image. Note the FSGroup of a Pod cannot be changed
   without recreating a new Pod. Optional.
 
+* **spiloRunAsNonRoot**
+  sets `runAsNonRoot` in the pod and the Spilo container security context.
+  This will override the **spilo_run_as_non_root** operator parameter. Useful
+  in environments where Pod Security standards or mutating admission webhooks
+  enforce running as non-root: without this option such webhooks patch the
+  operator-generated StatefulSet after creation, so the operator detects
+  "pod changes" on every sync and keeps triggering rolling updates with
+  switchovers. Unset by default: `runAsNonRoot` is omitted from the generated
+  pod spec unless this option or the operator parameter is defined. Optional.
+
 * **livenessProbe**
   Allows for adding a liveness probe to the Spilo container to detect if it's
   running properly.

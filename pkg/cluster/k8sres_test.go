@@ -1824,6 +1824,82 @@ func TestShmVolume(t *testing.T) {
 	}
 }
 
+func TestSpiloRunAsNonRoot(t *testing.T) {
+	superUserName := "superuser"
+	replicationUserName := "replicationuser"
+
+	spiloRunAsUser := int64(101)
+	spiloRunAsGroup := int64(103)
+	spiloFSGroup := int64(103)
+
+	createCluster := func(manifestRunAsNonRoot, optionRunAsNonRoot *bool) *Cluster {
+		pg := acidv1.Postgresql{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      clusterName,
+				Namespace: namespace,
+			},
+			Spec: acidv1.PostgresSpec{
+				TeamID:            "myapp",
+				NumberOfInstances: 1,
+				Volume: acidv1.Volume{
+					Size: "5Gi",
+				},
+				SpiloRunAsNonRoot: manifestRunAsNonRoot,
+			},
+		}
+
+		client, _ := newFakeK8sTestClient()
+
+		return New(
+			Config{
+				OpConfig: config.Config{
+					PodManagementPolicy: "ordered_ready",
+					ProtectedRoles:      []string{"admin"},
+					Auth: config.Auth{
+						SuperUsername:       superUserName,
+						ReplicationUsername: replicationUserName,
+					},
+					Resources: config.Resources{
+						SpiloRunAsUser:    &spiloRunAsUser,
+						SpiloRunAsGroup:   &spiloRunAsGroup,
+						SpiloFSGroup:      &spiloFSGroup,
+						SpiloRunAsNonRoot: optionRunAsNonRoot,
+					},
+				},
+			}, client, pg, logger, eventRecorder)
+	}
+
+	t.Run("unset leaves runAsNonRoot out of the pod spec", func(t *testing.T) {
+		cluster := createCluster(nil, nil)
+		sts, err := cluster.createStatefulSet()
+		assert.NoError(t, err)
+
+		assert.Nil(t, sts.Spec.Template.Spec.SecurityContext.RunAsNonRoot)
+		postgresContainer := getPostgresContainer(&sts.Spec.Template.Spec)
+		assert.Nil(t, postgresContainer.SecurityContext.RunAsNonRoot)
+	})
+
+	t.Run("operator option sets runAsNonRoot on pod and container level", func(t *testing.T) {
+		cluster := createCluster(nil, util.True())
+		sts, err := cluster.createStatefulSet()
+		assert.NoError(t, err)
+
+		assert.True(t, *sts.Spec.Template.Spec.SecurityContext.RunAsNonRoot)
+		postgresContainer := getPostgresContainer(&sts.Spec.Template.Spec)
+		assert.True(t, *postgresContainer.SecurityContext.RunAsNonRoot)
+	})
+
+	t.Run("cluster manifest overrides the operator option", func(t *testing.T) {
+		cluster := createCluster(util.False(), util.True())
+		sts, err := cluster.createStatefulSet()
+		assert.NoError(t, err)
+
+		assert.False(t, *sts.Spec.Template.Spec.SecurityContext.RunAsNonRoot)
+		postgresContainer := getPostgresContainer(&sts.Spec.Template.Spec)
+		assert.False(t, *postgresContainer.SecurityContext.RunAsNonRoot)
+	})
+}
+
 func TestSecretVolume(t *testing.T) {
 	tests := []struct {
 		subTest   string
@@ -4659,6 +4735,7 @@ func TestGenerateContainerWithEnvFrom(t *testing.T) {
 		[]v1.VolumeMount{},
 		false,
 		util.False(),
+		nil,
 		nil,
 	)
 
