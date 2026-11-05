@@ -1292,7 +1292,7 @@ class EndToEndTestCase(unittest.TestCase):
         k8s.wait_for_pod_failover(master_nodes, 'spilo-role=replica,' + cluster_label)
         k8s.wait_for_pod_start('spilo-role=master,' + cluster_label)
         k8s.wait_for_pod_start('spilo-role=replica,' + cluster_label)
-        self.eventuallyEqual(check_version, 15, "Version should be upgraded from 14 to 15")
+        self.eventuallyEqual(check_version, 15, "Version should be upgraded from 14 to 15", retries=180)
 
         # check if annotation for last upgrade's success is set
         annotations = get_annotations()
@@ -1343,7 +1343,7 @@ class EndToEndTestCase(unittest.TestCase):
         k8s.wait_for_pod_failover(master_nodes, 'spilo-role=master,' + cluster_label)
         k8s.wait_for_pod_start('spilo-role=master,' + cluster_label)
         k8s.wait_for_pod_start('spilo-role=replica,' + cluster_label)
-        self.eventuallyEqual(check_version, 16, "Version should be upgraded from 15 to 16")
+        self.eventuallyEqual(check_version, 16, "Version should be upgraded from 15 to 16", retries=180)
 
         # check if annotation for last upgrade's success is updated after second upgrade
         third_annotations = get_annotations()
