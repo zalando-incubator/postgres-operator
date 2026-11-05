@@ -10,6 +10,21 @@ rules:
   resources:
   - postgresqls
   - postgresqls/status
+  - postgresteams
+  - operatorconfigurations
+  verbs:
+  - create
+  - delete
+  - deletecollection
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - zalando.org
+  resources:
+  - fabriceventstreams
   verbs:
   - create
   - delete
@@ -34,9 +49,34 @@ rules:
   - postgresqls
   verbs:
   - create
-  - update
-  - patch
   - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - acid.zalan.do
+  resources:
+  - postgresqls/status
+  - postgresteams
+  - operatorconfigurations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - zalando.org
+  resources:
+  - fabriceventstreams
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -51,6 +91,16 @@ rules:
   resources:
   - postgresqls
   - postgresqls/status
+  - postgresteams
+  - operatorconfigurations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - zalando.org
+  resources:
+  - fabriceventstreams
   verbs:
   - get
   - list

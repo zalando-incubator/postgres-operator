@@ -364,18 +364,24 @@ accounts and role bindings.
 
 ### Give K8s users access to create/list `postgresqls`
 
-By default `postgresql` custom resources can only be listed and changed by
-cluster admins. To allow read and/or write access to other human users apply
-the `user-facing-clusterrole` manifest:
+When installing with the plain manifests, `postgresql` custom resources can only
+be listed and changed by cluster admins. To allow read and/or write access to
+other human users apply the `user-facing-clusterrole` manifest:
 
 ```bash
 kubectl create -f manifests/user-facing-clusterroles.yaml
 ```
 
-It creates zalando-postgres-operator:user:view, :edit and :admin clusterroles
+It creates zalando-postgres-operator:users:view, :edit and :admin clusterroles
 that are aggregated into the K8s [default roles](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#default-roles-and-role-bindings).
+The view role grants read access to `postgresqls`, `postgresteams`,
+`operatorconfigurations` and `fabriceventstreams`. The edit role can change
+`postgresqls` and `fabriceventstreams`, the admin role additionally
+`postgresteams` and `operatorconfigurations`, because these change
+operator-wide behaviour.
 
-For Helm deployments setting `rbac.createAggregateClusterRoles: true` adds these clusterroles to the deployment.
+The Helm chart creates these clusterroles by default. Set
+`rbac.createAggregateClusterRoles: false` to disable them.
 
 ## Password rotation in K8s secrets
 

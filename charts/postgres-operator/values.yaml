@@ -486,8 +486,8 @@ enableStreams: false
 rbac:
   # Specifies whether RBAC resources should be created
   create: true
-  # Specifies whether ClusterRoles that are aggregated into the K8s default roles should be created. (https://kubernetes.io/docs/reference/access-authn-authz/rbac/#default-roles-and-role-bindings)
-  createAggregateClusterRoles: false
+  # Specifies whether ClusterRoles that are aggregated into the K8s default roles should be created (enabled by default). (https://kubernetes.io/docs/reference/access-authn-authz/rbac/#default-roles-and-role-bindings)
+  createAggregateClusterRoles: true
 
 serviceAccount:
   # Specifies whether a ServiceAccount should be created
