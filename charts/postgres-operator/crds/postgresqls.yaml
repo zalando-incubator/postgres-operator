@@ -154,6 +154,16 @@ spec:
                   makes sense to expose. E.g. pool size (min/max boundaries), max client
                   connections etc.
                 properties:
+                  imagePullSecrets:
+                    type: array
+                    nullable: true
+                    items:
+                      type: object
+                      required:
+                        - name
+                      properties:
+                        name:
+                          type: string
                   dockerImage:
                     type: string
                   maxDBConnections:

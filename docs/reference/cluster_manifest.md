@@ -646,6 +646,9 @@ for both master and replica pooler services (if `enableReplicaConnectionPooler`
   User to create for connection pooler to be able to connect to a database.
   You can also choose a role from the `users` section or a system user role.
 
+* **imagePullSecrets**
+  References an existing Kubernetes secret to use when pulling a custom pooler image.
+
 * **dockerImage**
   Which docker image to use for connection pooler deployment.
 

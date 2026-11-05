@@ -480,6 +480,10 @@ func (c *Cluster) generateConnectionPoolerPodTemplate(role PostgresRole) (
 		},
 	}
 
+	if len(connectionPoolerSpec.ImagePullSecrets) > 0 {
+		podTemplate.Spec.ImagePullSecrets = connectionPoolerSpec.ImagePullSecrets
+	}
+
 	nodeAffinity := c.nodeAffinity(c.OpConfig.NodeReadinessLabel, spec.NodeAffinity)
 	if c.OpConfig.EnablePodAntiAffinity {
 		labelsSet := labels.Set(c.connectionPoolerLabels(role, false).MatchLabels)
