@@ -363,12 +363,25 @@ func (c *Cluster) waitForPodLabel(podEvents chan PodEvent, stopCh chan struct{},
 	}
 }
 
+// isPodGone tells if the event shows that the pod the subscriber waits on has been deleted.
+// Besides the delete event itself, an update replacing the pod with a new instance of the same name
+// also proves it, e.g. when the informer missed the deletion and only observed the new pod after a relist.
+func isPodGone(podEvent PodEvent) bool {
+	switch podEvent.EventType {
+	case PodEventDelete:
+		return true
+	case PodEventUpdate:
+		return podEvent.PrevPod != nil && podEvent.CurPod != nil && podEvent.PrevPod.UID != podEvent.CurPod.UID
+	}
+	return false
+}
+
 func (c *Cluster) waitForPodDeletion(podEvents chan PodEvent) error {
 	timeout := time.After(c.OpConfig.PodDeletionWaitTimeout.Duration)
 	for {
 		select {
 		case podEvent := <-podEvents:
-			if podEvent.EventType == PodEventDelete {
+			if isPodGone(podEvent) {
 				return nil
 			}
 		case <-timeout:

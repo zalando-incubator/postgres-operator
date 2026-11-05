@@ -25,20 +25,32 @@ import (
 	"github.com/zalando/postgres-operator/v2/pkg/util/ringlog"
 )
 
+// clusterResync queues a sync of all clusters every resync period and a repair scan
+// of the clusters in a failed state every repair period.
 func (c *Controller) clusterResync(stopCh <-chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
-	ticker := time.NewTicker(c.opConfig.ResyncPeriod.Duration)
+	ticker := time.NewTicker(c.resyncTickPeriod())
+	defer ticker.Stop()
 
 	for {
 		select {
-		case <-ticker.C:
-			if err := c.clusterListAndSync(); err != nil {
+		case tickTime := <-ticker.C:
+			if err := c.clusterListAndSync(tickTime); err != nil {
 				c.logger.Errorf("could not list clusters: %v", err)
 			}
 		case <-stopCh:
 			return
 		}
 	}
+}
+
+// resyncTickPeriod returns how often to check whether a sync or a repair is due, which is the shorter
+// of both periods. A repair period that is not positive disables the repair scans.
+func (c *Controller) resyncTickPeriod() time.Duration {
+	if c.opConfig.RepairPeriod.Duration > 0 {
+		return min(c.opConfig.ResyncPeriod.Duration, c.opConfig.RepairPeriod.Duration)
+	}
+	return c.opConfig.ResyncPeriod.Duration
 }
 
 // clusterListFunc obtains a list of all PostgreSQL clusters
@@ -63,19 +75,21 @@ func (c *Controller) listClusters(options metav1.ListOptions) (*acidv1.Postgresq
 }
 
 // clusterListAndSync lists all manifests and decides whether to run the sync or repair.
-func (c *Controller) clusterListAndSync() error {
+func (c *Controller) clusterListAndSync(currentTime time.Time) error {
 	var (
 		err   error
 		event EventType
 	)
 
-	currentTime := time.Now().Unix()
-	timeFromPreviousSync := currentTime - atomic.LoadInt64(&c.lastClusterSyncTime)
-	timeFromPreviousRepair := currentTime - atomic.LoadInt64(&c.lastClusterRepairTime)
+	timeFromPreviousSync := currentTime.Sub(time.Unix(atomic.LoadInt64(&c.lastClusterSyncTime), 0))
+	timeFromPreviousRepair := currentTime.Sub(time.Unix(atomic.LoadInt64(&c.lastClusterRepairTime), 0))
+	// ticks arrive with a small delay and the last times are stored in seconds, so a tick can come slightly
+	// before a period elapsed. Tolerate that, otherwise the due sync or repair is postponed by a whole tick.
+	tolerance := c.resyncTickPeriod() / 10
 
-	if timeFromPreviousSync >= int64(c.opConfig.ResyncPeriod.Seconds()) {
+	if timeFromPreviousSync >= c.opConfig.ResyncPeriod.Duration-tolerance {
 		event = EventSync
-	} else if timeFromPreviousRepair >= int64(c.opConfig.RepairPeriod.Seconds()) {
+	} else if c.opConfig.RepairPeriod.Duration > 0 && timeFromPreviousRepair >= c.opConfig.RepairPeriod.Duration-tolerance {
 		event = EventRepair
 	}
 	if event != "" {
@@ -83,16 +97,17 @@ func (c *Controller) clusterListAndSync() error {
 		if list, err = c.listClusters(metav1.ListOptions{ResourceVersion: "0"}); err != nil {
 			return err
 		}
-		c.queueEvents(list, event)
+		c.queueEvents(list, event, currentTime)
 	} else {
-		c.logger.Infof("not enough time passed since the last sync (%v seconds) or repair (%v seconds)",
-			timeFromPreviousSync, timeFromPreviousRepair)
+		c.logger.Infof("not enough time passed since the last sync (%v) or repair (%v)",
+			timeFromPreviousSync.Round(time.Second), timeFromPreviousRepair.Round(time.Second))
 	}
 	return nil
 }
 
-// queueEvents queues a sync or repair event for every cluster with a valid manifest
-func (c *Controller) queueEvents(list *acidv1.PostgresqlList, event EventType) {
+// queueEvents queues a sync or repair event for every cluster with a valid manifest.
+// The scheduled time is recorded as the time of the last sync or repair.
+func (c *Controller) queueEvents(list *acidv1.PostgresqlList, event EventType, scheduledTime time.Time) {
 	var activeClustersCnt, failedClustersCnt, clustersToRepair int
 	for i, pg := range list.Items {
 		// XXX: check the cluster status field instead
@@ -126,9 +141,9 @@ func (c *Controller) queueEvents(list *acidv1.PostgresqlList, event EventType) {
 		c.logger.Infof("no clusters running")
 	}
 	if event == EventRepair || event == EventSync {
-		atomic.StoreInt64(&c.lastClusterRepairTime, time.Now().Unix())
+		atomic.StoreInt64(&c.lastClusterRepairTime, scheduledTime.Unix())
 		if event == EventSync {
-			atomic.StoreInt64(&c.lastClusterSyncTime, time.Now().Unix())
+			atomic.StoreInt64(&c.lastClusterSyncTime, scheduledTime.Unix())
 		}
 	}
 }
@@ -140,6 +155,7 @@ func (c *Controller) acquireInitialListOfClusters() error {
 		clusterName spec.NamespacedName
 	)
 
+	startTime := time.Now()
 	if list, err = c.listClusters(metav1.ListOptions{ResourceVersion: "0"}); err != nil {
 		return err
 	}
@@ -154,7 +170,7 @@ func (c *Controller) acquireInitialListOfClusters() error {
 		c.logger.Debugf("added new cluster: %q", clusterName)
 	}
 	// initiate initial sync of all clusters.
-	c.queueEvents(list, EventSync)
+	c.queueEvents(list, EventSync, startTime)
 	return nil
 }
 
@@ -363,16 +379,12 @@ func (c *Controller) processClusterEventsQueue(idx int, stopCh <-chan struct{}, 
 	}()
 
 	for {
-		_, err := (*c.clusterEventQueues[idx]).Pop(cache.PopProcessFunc(func(obj interface{}, isInitialList bool) error {
-			event, ok := obj.(ClusterEvent)
-			if !ok {
-				c.logger.Errorf("could not cast to cluster event")
-				return nil // skip event to keep processing
-			}
-			c.processEvent(event, isInitialList)
-			if err := c.clusterEventStores[idx].Delete(obj); err != nil {
-				c.logger.Errorf("failed to delete key from lookup store: %v", err)
-			}
+		var isInitialList bool
+		// Pop holds the queue lock while calling the process function, so the event is only taken from
+		// the queue there and processed afterwards. Otherwise queueClusterEvent would block until the
+		// worker finishes, stalling the informer handler and with it the events of all other clusters.
+		obj, err := (*c.clusterEventQueues[idx]).Pop(cache.PopProcessFunc(func(_ interface{}, initialList bool) error {
+			isInitialList = initialList
 			return nil
 		}))
 		if err != nil {
@@ -382,6 +394,15 @@ func (c *Controller) processClusterEventsQueue(idx int, stopCh <-chan struct{}, 
 			c.logger.Errorf("error when processing cluster events queue: %v", err)
 			continue
 		}
+		event, ok := obj.(ClusterEvent)
+		if !ok {
+			c.logger.Errorf("could not cast to cluster event")
+			continue // skip event to keep processing
+		}
+		if err := c.clusterEventStores[idx].Delete(obj); err != nil {
+			c.logger.Errorf("failed to delete key from lookup store: %v", err)
+		}
+		c.processEvent(event, isInitialList)
 	}
 }
 
@@ -489,18 +510,14 @@ func (c *Controller) queueClusterEvent(informerOldSpec, informerNewSpec *acidv1.
 		return
 	}
 	// A delete event discards all prior requests for that cluster.
-	for _, evType := range []EventType{EventAdd, EventSync, EventUpdate, EventRepair} {
-		obj, exists, err := c.clusterEventStores[workerID].GetByKey(queueClusterKey(evType, uid))
-		if err != nil {
-			lg.Warningf("could not get event from the lookup store: %v", err)
+	for _, obj := range c.clusterEventStores[workerID].List() {
+		queuedEvent, ok := obj.(ClusterEvent)
+		if !ok || queuedEvent.UID != uid || queuedEvent.EventType == EventDelete {
 			continue
 		}
+		evType := queuedEvent.EventType
 
-		if !exists {
-			continue
-		}
-
-		err = (*c.clusterEventQueues[workerID]).Delete(obj)
+		err := (*c.clusterEventQueues[workerID]).Delete(obj)
 		if err != nil {
 			lg.Warningf("could not delete event from the queue: %v", err)
 		} else {

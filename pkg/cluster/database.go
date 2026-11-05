@@ -156,7 +156,9 @@ func (c *Cluster) initDbConnWithName(dbname string) error {
 	var conn *sql.DB
 	connstring := c.pgConnectionString(dbname)
 
-	finalerr := retryutil.Retry(constants.PostgresConnectTimeout, constants.PostgresConnectRetryTimeout,
+	// right after a pod (re)start the first attempts usually fail, so start retrying quickly
+	finalerr := retryutil.RetryWithBackoff(constants.PostgresConnectRetryInitialInterval,
+		constants.PostgresConnectTimeout, constants.PostgresConnectRetryTimeout,
 		func() (bool, error) {
 			var err error
 			conn, err = sql.Open("postgres", connstring)

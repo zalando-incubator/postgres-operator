@@ -35,6 +35,10 @@ const (
 	PodEventDelete PodEventType = "DELETE"
 )
 
+// podSubscriberBufferSize is the number of pod events buffered for a subscriber waiting on a pod.
+// A pod emits only a handful of events while it is being recreated.
+const podSubscriberBufferSize = 100
+
 // PodEvent describes the event for a single Pod
 type PodEvent struct {
 	ResourceVersion string

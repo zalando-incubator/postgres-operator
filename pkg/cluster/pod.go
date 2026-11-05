@@ -189,7 +189,9 @@ func (c *Cluster) registerPodSubscriber(podName spec.NamespacedName) chan PodEve
 	c.podSubscribersMu.Lock()
 	defer c.podSubscribersMu.Unlock()
 
-	ch := make(chan PodEvent)
+	// buffered, because events are sent without blocking and would be lost if the subscriber
+	// is not waiting on the channel at that very moment, e.g. when two events arrive back to back
+	ch := make(chan PodEvent, podSubscriberBufferSize)
 	if _, ok := c.podSubscribers[podName]; ok {
 		panic("pod '" + podName.String() + "' is already subscribed")
 	}

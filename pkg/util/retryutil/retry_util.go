@@ -33,6 +33,44 @@ func Retry(interval time.Duration, timeout time.Duration, f func() (bool, error)
 	return RetryWorker(interval, timeout, tick, f)
 }
 
+// RetryWithBackoff is a wrapper around RetryWithBackoffWorker that sleeps for real
+func RetryWithBackoff(initialInterval, maxInterval, timeout time.Duration, f func() (bool, error)) error {
+	if timeout < initialInterval {
+		return fmt.Errorf("timeout(%s) should be greater than initial interval(%v)", timeout, initialInterval)
+	}
+	return RetryWithBackoffWorker(initialInterval, maxInterval, timeout, time.Sleep, f)
+}
+
+// RetryWithBackoffWorker calls ConditionFunc like RetryWorker, but starts with initialInterval
+// between the calls and doubles it after every failed call up to maxInterval.
+// It gives up once the time spent waiting would exceed the timeout.
+func RetryWithBackoffWorker(
+	initialInterval time.Duration,
+	maxInterval time.Duration,
+	timeout time.Duration,
+	sleep func(time.Duration),
+	f func() (bool, error)) error {
+
+	interval := initialInterval
+	var waited time.Duration
+
+	for i := 1; ; i++ {
+		ok, err := f()
+		if err != nil {
+			return err
+		}
+		if ok {
+			return nil
+		}
+		if waited+interval > timeout {
+			return fmt.Errorf("still failing after %d retries", i)
+		}
+		sleep(interval)
+		waited += interval
+		interval = min(2*interval, maxInterval)
+	}
+}
+
 // RetryWorker calls ConditionFunc until either:
 // * it returns boolean true
 // * a timeout expires

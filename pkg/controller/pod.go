@@ -7,6 +7,7 @@ import (
 	"github.com/zalando/postgres-operator/v2/pkg/spec"
 	"github.com/zalando/postgres-operator/v2/pkg/util"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/cache"
 )
 
 func (c *Controller) dispatchPodEvent(clusterName spec.NamespacedName, event cluster.PodEvent) {
@@ -39,6 +40,10 @@ func (c *Controller) podUpdate(prev, cur interface{}) {
 }
 
 func (c *Controller) podDelete(obj interface{}) {
+	// the informer hands over a tombstone when it missed the deletion and only noticed it on a relist
+	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+		obj = tombstone.Obj
+	}
 
 	if pod, ok := obj.(*v1.Pod); ok {
 		c.preparePodEventForDispatch(pod, nil, cluster.PodEventDelete)
