@@ -1765,11 +1765,19 @@ class EndToEndTestCase(unittest.TestCase):
             k8s.update_config(enable_owner_refs)
             self.eventuallyEqual(lambda: k8s.get_operator_state(), {"0": "idle"}, "Operator does not get in sync")
 
-            time.sleep(5)  # wait for the operator to sync the cluster and update resources
+            def owner_references_are_set(cluster, namespace='default', inverse=False):
+                try:
+                    return self.check_cluster_child_resources_owner_references(cluster, namespace, inverse)
+                except ApiException:
+                    return False
 
             # check if child resources were updated with owner references
-            self.assertTrue(self.check_cluster_child_resources_owner_references(cluster_name, self.test_namespace), "Owner references not set on all child resources of {}".format(cluster_name))
-            self.assertTrue(self.check_cluster_child_resources_owner_references(default_test_cluster), "Owner references not set on all child resources of {}".format(default_test_cluster))
+            self.eventuallyTrue(
+                lambda: owner_references_are_set(cluster_name, self.test_namespace),
+                "Owner references not set on all child resources of {}".format(cluster_name))
+            self.eventuallyTrue(
+                lambda: owner_references_are_set(default_test_cluster),
+                "Owner references not set on all child resources of {}".format(default_test_cluster))
 
             # delete the new cluster to test owner references
             # and also to make k8s_api.get_operator_state work better in subsequent tests
@@ -1800,10 +1808,10 @@ class EndToEndTestCase(unittest.TestCase):
             k8s.update_config(disable_owner_refs)
             self.eventuallyEqual(lambda: k8s.get_operator_state(), {"0": "idle"}, "Operator does not get in sync")
 
-            time.sleep(5)  # wait for the operator to remove owner references
-
             # check if child resources were updated without Postgresql owner references
-            self.assertTrue(self.check_cluster_child_resources_owner_references(default_test_cluster, "default", True), "Owner references still present on some child resources of {}".format(default_test_cluster))
+            self.eventuallyTrue(
+                lambda: owner_references_are_set(default_test_cluster, inverse=True),
+                "Owner references still present on some child resources of {}".format(default_test_cluster))
 
         except timeout_decorator.TimeoutError:
             print('Operator log: {}'.format(k8s.get_operator_log()))
