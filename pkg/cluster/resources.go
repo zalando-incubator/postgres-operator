@@ -365,7 +365,11 @@ func (c *Cluster) deleteService(role PostgresRole) error {
 		return nil
 	}
 
-	if err := c.KubeClient.Services(c.Services[role].Namespace).Delete(context.TODO(), c.Services[role].Name, c.deleteOptions); err != nil {
+	// orphan propagation would leave the EndpointSlices of selector-based services behind
+	policy := metav1.DeletePropagationBackground
+	options := metav1.DeleteOptions{PropagationPolicy: &policy}
+
+	if err := c.KubeClient.Services(c.Services[role].Namespace).Delete(context.TODO(), c.Services[role].Name, options); err != nil {
 		if !k8sutil.ResourceNotFound(err) {
 			return fmt.Errorf("could not delete %s service: %v", role, err)
 		}
