@@ -2470,13 +2470,13 @@ class EndToEndTestCase(unittest.TestCase):
 
             self.eventuallyEqual(lambda: k8s.count_running_pods(), 2, "No 2 pods running")
             self.eventuallyEqual(lambda: len(k8s.get_patroni_running_members("acid-minimal-cluster-0")), 2, "Postgres status did not enter running")
+            self.assert_distributed_pods(master_nodes)
 
         except timeout_decorator.TimeoutError:
             print('Operator log: {}'.format(k8s.get_operator_log()))
             raise
-
-        # toggle pod anti affinity to move replica away from master node
-        self.assert_distributed_pods(master_nodes)
+        finally:
+            k8s.api.core_v1.patch_node(master_nodes[0], {"spec": {"taints": []}})
 
     @timeout_decorator.timeout(TEST_TIMEOUT_SEC)
     def test_topology_spread_constraints(self):
