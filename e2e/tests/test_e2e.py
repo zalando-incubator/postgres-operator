@@ -2021,6 +2021,7 @@ class EndToEndTestCase(unittest.TestCase):
             for pod in podsList.items:
                 # add flag only to the master to make it appear to the operator as a leftover from a rolling update
                 if pod.metadata.labels.get('spilo-role') == 'master':
+                    old_master_pod_name = pod.metadata.name
                     old_creation_timestamp = pod.metadata.creation_timestamp
                     k8s.patch_pod(flag, pod.metadata.name, pod.metadata.namespace)
                 else:
@@ -2041,8 +2042,14 @@ class EndToEndTestCase(unittest.TestCase):
             # check that the old master has been recreated
             k8s.wait_for_pod_start('spilo-role=replica,' + cluster_label)
             self.eventuallyTrue(
-                lambda: (replica := k8s.get_cluster_replica_pod()) is not None
-                and replica.metadata.creation_timestamp > old_creation_timestamp,
+                lambda: any(
+                    pod.metadata.labels.get('spilo-role') == 'replica'
+                    and pod.metadata.creation_timestamp > old_creation_timestamp
+                    for pod in k8s.api.core_v1.list_namespaced_pod(
+                        'default',
+                        label_selector='statefulset.kubernetes.io/pod-name=' + old_master_pod_name,
+                    ).items
+                ),
                 "Old master pod was not recreated",
             )
 
