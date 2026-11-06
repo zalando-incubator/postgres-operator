@@ -17,7 +17,9 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 func newFakeK8sPoolerTestClient() (k8sutil.KubernetesClient, *fake.Clientset) {
@@ -1331,4 +1333,145 @@ func TestConnectionPoolerServiceType(t *testing.T) {
 			}
 		}
 	}
+}
+
+func newPoolerCleanupTestCluster(client k8sutil.KubernetesClient, enabled bool) *Cluster {
+	pg := acidv1.Postgresql{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "acid-fake-cluster",
+			Namespace: "default",
+		},
+		Spec: acidv1.PostgresSpec{
+			EnableConnectionPooler:        boolToPointer(enabled),
+			EnableReplicaConnectionPooler: boolToPointer(enabled),
+			Volume: acidv1.Volume{
+				Size: "1Gi",
+			},
+		},
+	}
+
+	cluster := New(
+		Config{
+			OpConfig: config.Config{
+				ConnectionPooler: config.ConnectionPooler{
+					ConnectionPoolerDefaultCPURequest:    "100m",
+					ConnectionPoolerDefaultCPULimit:      "100m",
+					ConnectionPoolerDefaultMemoryRequest: "100Mi",
+					ConnectionPoolerDefaultMemoryLimit:   "100Mi",
+					NumberOfInstances:                    k8sutil.Int32ToPointer(1),
+				},
+				PodManagementPolicy: "ordered_ready",
+				Resources: config.Resources{
+					ClusterLabels:        map[string]string{"application": "spilo"},
+					ClusterNameLabel:     "cluster-name",
+					DefaultCPURequest:    "300m",
+					DefaultCPULimit:      "300m",
+					DefaultMemoryRequest: "300Mi",
+					DefaultMemoryLimit:   "300Mi",
+					PodRoleLabel:         "spilo-role",
+				},
+			},
+		}, client, pg, logger, eventRecorder)
+
+	cluster.Name = "acid-fake-cluster"
+	cluster.Namespace = "default"
+	return cluster
+}
+
+func assertPoolerObjectsGone(t *testing.T, cluster *Cluster, clientSet *fake.Clientset) {
+	t.Helper()
+	for _, role := range [2]PostgresRole{Master, Replica} {
+		name := cluster.connectionPoolerName(role)
+		_, err := clientSet.AppsV1().Deployments("default").Get(context.TODO(), name, metav1.GetOptions{})
+		assert.True(t, k8sutil.ResourceNotFound(err), "deployment %s should be deleted, got %v", name, err)
+		_, err = clientSet.CoreV1().Services("default").Get(context.TODO(), name, metav1.GetOptions{})
+		assert.True(t, k8sutil.ResourceNotFound(err), "service %s should be deleted, got %v", name, err)
+		_, err = clientSet.CoreV1().Secrets("default").Get(context.TODO(), name+"-u", metav1.GetOptions{})
+		assert.True(t, k8sutil.ResourceNotFound(err), "auth secret %s-u should be deleted, got %v", name, err)
+	}
+}
+
+// After an operator restart the in-memory references to the pooler objects
+// are gone. Syncing a cluster whose pooler is disabled must still remove the
+// objects left over from when it was enabled.
+func TestConnectionPoolerCleanupAfterRestart(t *testing.T) {
+	client, clientSet := newFakeK8sPoolerTestClient()
+
+	cluster := newPoolerCleanupTestCluster(client, true)
+	_, err := cluster.createService(Master)
+	assert.NoError(t, err)
+	_, err = cluster.createStatefulSet()
+	assert.NoError(t, err)
+	_, err = cluster.createConnectionPooler(mockInstallLookupFunction)
+	assert.NoError(t, err)
+
+	// "restart": a fresh Cluster object with the pooler disabled, synced
+	// with the same old and new spec, as done on operator startup
+	restarted := newPoolerCleanupTestCluster(client, false)
+	_, err = restarted.syncConnectionPooler(&restarted.Postgresql, &restarted.Postgresql, mockInstallLookupFunction)
+	assert.NoError(t, err)
+
+	assertPoolerObjectsGone(t, restarted, clientSet)
+	for _, role := range [2]PostgresRole{Master, Replica} {
+		assert.Nil(t, restarted.ConnectionPooler[role].Deployment)
+		assert.Nil(t, restarted.ConnectionPooler[role].Service)
+		assert.Nil(t, restarted.ConnectionPooler[role].AuthSecret)
+	}
+}
+
+// A failed deletion of one pooler object must not stop the deletion of the
+// others, and the failed object must stay remembered so it gets retried.
+func TestConnectionPoolerDeleteContinuesOnError(t *testing.T) {
+	client, clientSet := newFakeK8sPoolerTestClient()
+
+	cluster := newPoolerCleanupTestCluster(client, true)
+	_, err := cluster.createService(Master)
+	assert.NoError(t, err)
+	_, err = cluster.createStatefulSet()
+	assert.NoError(t, err)
+	_, err = cluster.createConnectionPooler(mockInstallLookupFunction)
+	assert.NoError(t, err)
+
+	failServiceDelete := true
+	clientSet.PrependReactor("delete", "services", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		if failServiceDelete {
+			return true, nil, fmt.Errorf("transient API error")
+		}
+		return false, nil, nil
+	})
+
+	err = cluster.deleteConnectionPooler(Master)
+	assert.Error(t, err)
+
+	name := cluster.connectionPoolerName(Master)
+	_, err = clientSet.CoreV1().Secrets("default").Get(context.TODO(), name+"-u", metav1.GetOptions{})
+	assert.True(t, k8sutil.ResourceNotFound(err), "auth secret should be deleted despite the service error, got %v", err)
+	assert.Nil(t, cluster.ConnectionPooler[Master].Deployment)
+	assert.Nil(t, cluster.ConnectionPooler[Master].AuthSecret)
+	assert.NotNil(t, cluster.ConnectionPooler[Master].Service, "service must stay remembered for a retry")
+
+	failServiceDelete = false
+	assert.NoError(t, cluster.deleteConnectionPooler(Master))
+	assert.Nil(t, cluster.ConnectionPooler[Master].Service)
+	_, err = clientSet.CoreV1().Services("default").Get(context.TODO(), name, metav1.GetOptions{})
+	assert.True(t, k8sutil.ResourceNotFound(err), "service should be deleted on retry, got %v", err)
+}
+
+// Objects that merely share the pooler name but were not created by the
+// operator (no connection-pooler label) must not be removed.
+func TestConnectionPoolerCleanupKeepsForeignObjects(t *testing.T) {
+	client, clientSet := newFakeK8sPoolerTestClient()
+	cluster := newPoolerCleanupTestCluster(client, false)
+	name := cluster.connectionPoolerName(Master)
+
+	_, err := clientSet.CoreV1().Services("default").Create(context.TODO(), &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+	}, metav1.CreateOptions{})
+	assert.NoError(t, err)
+
+	_, err = cluster.syncConnectionPooler(&cluster.Postgresql, &cluster.Postgresql, mockInstallLookupFunction)
+	assert.NoError(t, err)
+
+	_, err = clientSet.CoreV1().Services("default").Get(context.TODO(), name, metav1.GetOptions{})
+	assert.NoError(t, err, "unrelated service must be kept")
 }

@@ -695,70 +695,119 @@ func (c *Cluster) deleteConnectionPooler(role PostgresRole) (err error) {
 		return nil
 	}
 
-	// Clean up the deployment object. If deployment resource we've remembered
-	// is somehow empty, try to delete based on what would we generate
-	deployment := c.ConnectionPooler[role].Deployment
+	// Try to delete every remembered object even if one of the deletions
+	// fails, and forget only the objects that are really gone. Otherwise a
+	// failure on e.g. the service would leave the auth secret behind and,
+	// once the in-memory references are lost, nothing would retry it.
+	var errs []string
+
+	// set delete propagation policy to foreground, so that replica set will be
+	// also deleted.
 	policy := metav1.DeletePropagationForeground
 	options := metav1.DeleteOptions{PropagationPolicy: &policy}
 
-	if deployment != nil {
-
-		// set delete propagation policy to foreground, so that replica set will be
-		// also deleted.
-
+	if deployment := c.ConnectionPooler[role].Deployment; deployment != nil {
 		err = c.KubeClient.
 			Deployments(c.Namespace).
 			Delete(context.TODO(), deployment.Name, options)
 
 		if k8sutil.ResourceNotFound(err) {
 			c.logger.Debugf("connection pooler deployment %s for role %s has already been deleted", deployment.Name, role)
+			c.ConnectionPooler[role].Deployment = nil
 		} else if err != nil {
-			return fmt.Errorf("could not delete connection pooler deployment: %v", err)
+			errs = append(errs, fmt.Sprintf("could not delete connection pooler deployment: %v", err))
+		} else {
+			c.logger.Infof("connection pooler deployment %s has been deleted for role %s", deployment.Name, role)
+			c.ConnectionPooler[role].Deployment = nil
 		}
-
-		c.logger.Infof("connection pooler deployment %s has been deleted for role %s", deployment.Name, role)
+	} else {
+		c.logger.Debug("no connection pooler deployment object to delete")
 	}
 
 	// Repeat the same for the service object
-	service := c.ConnectionPooler[role].Service
-	if service == nil {
-		c.logger.Debug("no connection pooler service object to delete")
-	} else {
-
+	if service := c.ConnectionPooler[role].Service; service != nil {
 		err = c.KubeClient.
 			Services(c.Namespace).
 			Delete(context.TODO(), service.Name, options)
 
 		if k8sutil.ResourceNotFound(err) {
-			c.logger.Debugf("connection pooler service %s for role %s has already been already deleted", service.Name, role)
+			c.logger.Debugf("connection pooler service %s for role %s has already been deleted", service.Name, role)
+			c.ConnectionPooler[role].Service = nil
 		} else if err != nil {
-			return fmt.Errorf("could not delete connection pooler service: %v", err)
+			errs = append(errs, fmt.Sprintf("could not delete connection pooler service: %v", err))
+		} else {
+			c.logger.Infof("connection pooler service %s has been deleted for role %s", service.Name, role)
+			c.ConnectionPooler[role].Service = nil
 		}
-
-		c.logger.Infof("connection pooler service %s has been deleted for role %s", service.Name, role)
+	} else {
+		c.logger.Debug("no connection pooler service object to delete")
 	}
 
 	// Repeat the same for the auth secret
-	authSecret := c.ConnectionPooler[role].AuthSecret
-	if authSecret == nil {
-		c.logger.Debug("no connection pooler auth secret to delete")
-	} else {
-		err := c.KubeClient.
+	if authSecret := c.ConnectionPooler[role].AuthSecret; authSecret != nil {
+		err = c.KubeClient.
 			Secrets(c.Namespace).
 			Delete(context.TODO(), authSecret.Name, metav1.DeleteOptions{})
 
 		if k8sutil.ResourceNotFound(err) {
 			c.logger.Debugf("connection pooler auth secret %s for role %s has already been deleted", authSecret.Name, role)
+			c.ConnectionPooler[role].AuthSecret = nil
 		} else if err != nil {
-			return fmt.Errorf("could not delete connection pooler auth secret: %v", err)
+			errs = append(errs, fmt.Sprintf("could not delete connection pooler auth secret: %v", err))
+		} else {
+			c.logger.Infof("connection pooler auth secret %s has been deleted for role %s", authSecret.Name, role)
+			c.ConnectionPooler[role].AuthSecret = nil
 		}
-
-		c.logger.Infof("connection pooler auth secret %s has been deleted for role %s", authSecret.Name, role)
+	} else {
+		c.logger.Debug("no connection pooler auth secret to delete")
 	}
 
-	c.ConnectionPooler[role].AuthSecret = nil
-	c.ConnectionPooler[role].Deployment = nil
-	c.ConnectionPooler[role].Service = nil
+	if len(errs) > 0 {
+		return fmt.Errorf("%s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+// Look up connection pooler objects of the given role by their names and
+// remember the ones that exist. This is needed when the in-memory references
+// are lost (e.g. after an operator restart) while the pooler is disabled, so
+// that leftovers of a previously enabled pooler can still be cleaned up.
+// Only objects carrying the connection-pooler label set by the operator are
+// taken into account.
+func (c *Cluster) discoverConnectionPoolerObjects(role PostgresRole) error {
+	name := c.connectionPoolerName(role)
+	authSecretName := fmt.Sprintf("%s-u", name)
+	isPoolerObject := func(objectLabels map[string]string) bool {
+		return objectLabels["connection-pooler"] == name
+	}
+
+	deployment, err := c.KubeClient.Deployments(c.Namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err == nil {
+		if isPoolerObject(deployment.Labels) {
+			c.ConnectionPooler[role].Deployment = deployment
+		}
+	} else if !k8sutil.ResourceNotFound(err) {
+		return fmt.Errorf("could not get connection pooler deployment %s: %v", name, err)
+	}
+
+	service, err := c.KubeClient.Services(c.Namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err == nil {
+		if isPoolerObject(service.Labels) {
+			c.ConnectionPooler[role].Service = service
+		}
+	} else if !k8sutil.ResourceNotFound(err) {
+		return fmt.Errorf("could not get connection pooler service %s: %v", name, err)
+	}
+
+	authSecret, err := c.KubeClient.Secrets(c.Namespace).Get(context.TODO(), authSecretName, metav1.GetOptions{})
+	if err == nil {
+		if isPoolerObject(authSecret.Labels) {
+			c.ConnectionPooler[role].AuthSecret = authSecret
+		}
+	} else if !k8sutil.ResourceNotFound(err) {
+		return fmt.Errorf("could not get connection pooler auth secret %s: %v", authSecretName, err)
+	}
+
 	return nil
 }
 
@@ -1038,6 +1087,16 @@ func (c *Cluster) syncConnectionPooler(oldSpec, newSpec *acidv1.Postgresql, Look
 				LookupFunction: false,
 				Role:           role,
 			}
+
+			// Nothing is remembered yet (first sync of this cluster, e.g.
+			// after an operator restart). If the pooler is not needed, look
+			// for objects left over from a previously enabled pooler, so that
+			// they get removed below.
+			if !connectionPoolerNeeded {
+				if err = c.discoverConnectionPoolerObjects(role); err != nil {
+					c.logger.Warningf("could not look up connection pooler objects: %v", err)
+				}
+			}
 		}
 
 		if connectionPoolerNeeded {
@@ -1081,7 +1140,8 @@ func (c *Cluster) syncConnectionPooler(oldSpec, newSpec *acidv1.Postgresql, Look
 			// delete and cleanup resources if they are already detected
 			if c.ConnectionPooler[role] != nil &&
 				(c.ConnectionPooler[role].Deployment != nil ||
-					c.ConnectionPooler[role].Service != nil) {
+					c.ConnectionPooler[role].Service != nil ||
+					c.ConnectionPooler[role].AuthSecret != nil) {
 
 				if err = c.deleteConnectionPooler(role); err != nil {
 					c.logger.Warningf("could not remove connection pooler: %v", err)
