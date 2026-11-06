@@ -2597,19 +2597,17 @@ class EndToEndTestCase(unittest.TestCase):
             # recreate Postgres cluster resource
             k8s.create_with_kubectl("manifests/minimal-postgres-manifest.yaml")
 
-            # wait a little before proceeding
-            time.sleep(10)
-            self.eventuallyEqual(lambda: k8s.get_operator_state(), {"0": "idle"}, "Operator does not get in sync")
-            self.eventuallyTrue(
-                lambda: k8s.count_pods_with_rolling_update_annotation(cluster_label) > 0,
-                "Postgresql pods were not marked for rolling update",
-            )
             self.eventuallyEqual(
-                lambda: k8s.count_pods_with_rolling_update_annotation(cluster_label),
-                0,
-                "Postgresql pods were not recreated after cluster resource was recreated",
+                lambda: k8s.pg_get_status(),
+                "Running",
+                "Postgresql cluster did not resume after its resource was recreated",
             )
             self.eventuallyEqual(lambda: k8s.get_operator_state(), {"0": "idle"}, "Operator does not get in sync")
+            self.eventuallyEqual(
+                lambda: k8s.count_running_pods(cluster_label),
+                2,
+                "Postgresql pods were not running after cluster resource was recreated",
+            )
 
             # add annotations to manifest
             delete_date = datetime.today().strftime('%Y-%m-%d')
