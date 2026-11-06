@@ -35,6 +35,7 @@ class EndToEndTestCase(unittest.TestCase):
 
     # `kind` pods may stuck in the `Terminating` phase for a few minutes; hence high test timeout
     TEST_TIMEOUT_SEC = 600
+    POD_ROLLOUT_TIMEOUT_SEC = 1200
 
     def eventuallyEqual(self, f, x, m, retries=60, interval=2):
         while True:
@@ -204,7 +205,7 @@ class EndToEndTestCase(unittest.TestCase):
             "Not all additional users found in database", 10, 5)
 
 
-    @timeout_decorator.timeout(TEST_TIMEOUT_SEC)
+    @timeout_decorator.timeout(POD_ROLLOUT_TIMEOUT_SEC)
     def test_additional_pod_capabilities(self):
         '''
            Extend postgres container capabilities
@@ -1993,7 +1994,7 @@ class EndToEndTestCase(unittest.TestCase):
         self.eventuallyEqual(lambda: len(self.query_database(leader.metadata.name, "postgres", user_query)), 2,
             "Found incorrect number of rotation users after disabling password rotation", 10, 5)
 
-    @timeout_decorator.timeout(TEST_TIMEOUT_SEC)
+    @timeout_decorator.timeout(POD_ROLLOUT_TIMEOUT_SEC)
     def test_rolling_update_annotation(self):
         '''
             Add rolling update annotation to only the master and see it failing over
