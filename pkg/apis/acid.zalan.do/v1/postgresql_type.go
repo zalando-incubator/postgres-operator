@@ -241,6 +241,7 @@ type Resources struct {
 type Patroni struct {
 	InitDB                map[string]string            `json:"initdb,omitempty"`
 	PgHba                 []string                     `json:"pg_hba,omitempty"`
+	PgIdent               []string                     `json:"pg_ident,omitempty"`
 	TTL                   uint32                       `json:"ttl,omitempty"`
 	LoopWait              uint32                       `json:"loop_wait,omitempty"`
 	RetryTimeout          uint32                       `json:"retry_timeout,omitempty"`

@@ -675,6 +675,11 @@ func (in *Patroni) DeepCopyInto(out *Patroni) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.PgIdent != nil {
+		in, out := &in.PgIdent, &out.PgIdent
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Slots != nil {
 		in, out := &in.Slots, &out.Slots
 		*out = make(map[string]map[string]string, len(*in))

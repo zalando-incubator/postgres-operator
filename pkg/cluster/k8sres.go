@@ -35,15 +35,16 @@ import (
 )
 
 const (
-	pgBinariesLocationTemplate     = "/usr/lib/postgresql/%v/bin"
-	patroniPGBinariesParameterName = "bin_dir"
-	patroniPGHBAConfParameterName  = "pg_hba"
-	localHost                      = "127.0.0.1/32"
-	scalyrSidecarName              = "scalyr-sidecar"
-	logicalBackupContainerName     = "logical-backup"
-	connectionPoolerContainer      = "connection-pooler"
-	pgPort                         = 5432
-	operatorPort                   = 8080
+	pgBinariesLocationTemplate      = "/usr/lib/postgresql/%v/bin"
+	patroniPGBinariesParameterName  = "bin_dir"
+	patroniPGHBAConfParameterName   = "pg_hba"
+	patroniPGIdentConfParameterName = "pg_ident"
+	localHost                       = "127.0.0.1/32"
+	scalyrSidecarName               = "scalyr-sidecar"
+	logicalBackupContainerName      = "logical-backup"
+	connectionPoolerContainer       = "connection-pooler"
+	pgPort                          = 5432
+	operatorPort                    = 8080
 )
 
 type patroniDCS struct {
@@ -469,11 +470,15 @@ PatroniInitDBParams:
 			config.Bootstrap.DCS.PGBootstrapConfiguration[constants.PatroniPGParametersParameterName] = bootstrap
 		}
 	}
-	// Patroni gives us a choice of writing pg_hba.conf to either the bootstrap section or to the local postgresql one.
-	// We choose the local one, because we need Patroni to change pg_hba.conf in PostgreSQL after the user changes the
+
+	// Patroni gives us a choice of writing pg_hba.conf and pg_ident.conf to either the bootstrap section or to the local postgresql one.
+	// We choose the local one, because we need Patroni to change them in PostgreSQL after the user changes the
 	// relevant section in the manifest.
 	if len(patroni.PgHba) > 0 {
 		config.PgLocalConfiguration[patroniPGHBAConfParameterName] = patroni.PgHba
+	}
+	if len(patroni.PgIdent) > 0 {
+		config.PgLocalConfiguration[patroniPGIdentConfParameterName] = patroni.PgIdent
 	}
 
 	res, err := json.Marshal(config)

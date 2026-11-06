@@ -371,6 +371,12 @@ explanation of `ttl` and `loop_wait` parameters.
   custom `pg_hba` should include the pam line to avoid breaking pam
   authentication. Optional.
 
+* **pg_ident**
+  list of custom `pg_ident` lines defining user name maps for external
+  authentication methods (e.g. cert, gss, peer). Each line is of the form
+  `mapname system-username pg-username`. Patroni manages `pg_ident.conf`
+  and reloads PostgreSQL when this list changes. Optional.
+
 * **ttl**
   Patroni `ttl` parameter value, optional. The default is set by the Spilo
   Docker image. Optional.

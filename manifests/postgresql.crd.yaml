@@ -2418,6 +2418,10 @@ spec:
                     items:
                       type: string
                     type: array
+                  pg_ident:
+                    items:
+                      type: string
+                    type: array
                   retry_timeout:
                     format: int32
                     type: integer

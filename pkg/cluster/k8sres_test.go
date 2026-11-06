@@ -90,6 +90,7 @@ func TestGenerateSpiloJSONConfiguration(t *testing.T) {
 					"data-checksums": "true",
 				},
 				PgHba:                 []string{"hostssl all all 0.0.0.0/0 scram-sha-256", "host    all all 0.0.0.0/0 scram-sha-256"},
+				PgIdent:               []string{"mymap user1 dbuser1", "mymap user2 dbuser2"},
 				TTL:                   30,
 				LoopWait:              10,
 				RetryTimeout:          10,
@@ -101,7 +102,7 @@ func TestGenerateSpiloJSONConfiguration(t *testing.T) {
 				FailsafeMode:          util.True(),
 			},
 			opConfig: &config.Config{},
-			result:   `{"postgresql":{"bin_dir":"/usr/lib/postgresql/18/bin","pg_hba":["hostssl all all 0.0.0.0/0 scram-sha-256","host    all all 0.0.0.0/0 scram-sha-256"]},"bootstrap":{"initdb":[{"auth-host":"scram-sha-256"},{"auth-local":"trust"},"data-checksums",{"encoding":"UTF8"},{"locale":"en_US.UTF-8"}],"dcs":{"ttl":30,"loop_wait":10,"retry_timeout":10,"maximum_lag_on_failover":33554432,"synchronous_mode":true,"synchronous_mode_strict":true,"synchronous_node_count":1,"slots":{"permanent_logical_1":{"database":"foo","plugin":"pgoutput","type":"logical"}},"failsafe_mode":true}}}`,
+			result:   `{"postgresql":{"bin_dir":"/usr/lib/postgresql/18/bin","pg_hba":["hostssl all all 0.0.0.0/0 scram-sha-256","host    all all 0.0.0.0/0 scram-sha-256"],"pg_ident":["mymap user1 dbuser1","mymap user2 dbuser2"]},"bootstrap":{"initdb":[{"auth-host":"scram-sha-256"},{"auth-local":"trust"},"data-checksums",{"encoding":"UTF8"},{"locale":"en_US.UTF-8"}],"dcs":{"ttl":30,"loop_wait":10,"retry_timeout":10,"maximum_lag_on_failover":33554432,"synchronous_mode":true,"synchronous_mode_strict":true,"synchronous_node_count":1,"slots":{"permanent_logical_1":{"database":"foo","plugin":"pgoutput","type":"logical"}},"failsafe_mode":true}}}`,
 		},
 		{
 			subtest: "Patroni failsafe_mode configured globally",

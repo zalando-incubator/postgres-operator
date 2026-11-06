@@ -934,6 +934,9 @@ func (c *Cluster) checkAndSetGlobalPostgreSQLConfiguration(pod *v1.Pod, effectiv
 	if desiredPatroniConfig.PgHba != nil && !reflect.DeepEqual(desiredPatroniConfig.PgHba, effectivePatroniConfig.PgHba) {
 		configToSet["pg_hba"] = desiredPatroniConfig.PgHba
 	}
+	if desiredPatroniConfig.PgIdent != nil && !reflect.DeepEqual(desiredPatroniConfig.PgIdent, effectivePatroniConfig.PgIdent) {
+		configToSet["pg_ident"] = desiredPatroniConfig.PgIdent
+	}
 	if desiredPatroniConfig.RetryTimeout > 0 && desiredPatroniConfig.RetryTimeout != effectivePatroniConfig.RetryTimeout {
 		configToSet["retry_timeout"] = desiredPatroniConfig.RetryTimeout
 	}
