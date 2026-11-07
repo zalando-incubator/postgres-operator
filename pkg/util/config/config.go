@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 
 	"fmt"
@@ -11,6 +12,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// seccompProfileRegexp matches the supported values of spilo_seccomp_profile
+var seccompProfileRegexp = regexp.MustCompile(`^(RuntimeDefault|Unconfined|Localhost/.+)?$`)
 
 // CRD describes CustomResourceDefinition specific configuration parameters
 type CRD struct {
@@ -39,6 +43,9 @@ type Resources struct {
 	SpiloPrivileged               bool                `name:"spilo_privileged" default:"false"`
 	SpiloAllowPrivilegeEscalation *bool               `name:"spilo_allow_privilege_escalation" default:"true"`
 	AdditionalPodCapabilities     []string            `name:"additional_pod_capabilities" default:""`
+	DropPodCapabilities           []string            `name:"drop_pod_capabilities" default:""`
+	SpiloRunAsNonRoot             *bool               `name:"spilo_runasnonroot"`
+	SpiloSeccompProfile           string              `name:"spilo_seccomp_profile"`
 	ClusterLabels                 map[string]string   `name:"cluster_labels" default:"application:spilo"`
 	InheritedLabels               []string            `name:"inherited_labels" default:""`
 	InheritedAnnotations          []string            `name:"inherited_annotations" default:""`
@@ -331,6 +338,11 @@ func validate(cfg *Config) (err error) {
 	if cfg.ConnectionPooler.User == cfg.SuperUsername {
 		msg := "connection pool user is not allowed to be the same as super user, username: %s"
 		err = fmt.Errorf(msg, cfg.ConnectionPooler.User)
+	}
+
+	if !seccompProfileRegexp.MatchString(cfg.SpiloSeccompProfile) {
+		err = fmt.Errorf("spilo_seccomp_profile %q is invalid, expected RuntimeDefault, Unconfined or Localhost/<profile>",
+			cfg.SpiloSeccompProfile)
 	}
 
 	return

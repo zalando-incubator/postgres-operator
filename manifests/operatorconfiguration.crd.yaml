@@ -196,6 +196,10 @@ spec:
                     items:
                       type: string
                     type: array
+                  drop_pod_capabilities:
+                    items:
+                      type: string
+                    type: array
                   enable_cross_namespace_secret:
                     type: boolean
                   enable_finalizers:
@@ -501,9 +505,14 @@ spec:
                   spilo_runasgroup:
                     format: int64
                     type: integer
+                  spilo_runasnonroot:
+                    type: boolean
                   spilo_runasuser:
                     format: int64
                     type: integer
+                  spilo_seccomp_profile:
+                    pattern: ^(RuntimeDefault|Unconfined|Localhost/.+)?$
+                    type: string
                   storage_resize_mode:
                     default: pvc
                     enum:

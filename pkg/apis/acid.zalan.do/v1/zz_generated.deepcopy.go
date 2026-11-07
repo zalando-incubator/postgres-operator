@@ -198,6 +198,16 @@ func (in *KubernetesMetaConfiguration) DeepCopyInto(out *KubernetesMetaConfigura
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.DropPodCapabilities != nil {
+		in, out := &in.DropPodCapabilities, &out.DropPodCapabilities
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.SpiloRunAsNonRoot != nil {
+		in, out := &in.SpiloRunAsNonRoot, &out.SpiloRunAsNonRoot
+		*out = new(bool)
+		**out = **in
+	}
 	if in.PDBMasterLabelSelector != nil {
 		in, out := &in.PDBMasterLabelSelector, &out.PDBMasterLabelSelector
 		*out = new(bool)

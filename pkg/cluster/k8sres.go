@@ -506,6 +506,74 @@ func generateCapabilities(capabilities []string) *v1.Capabilities {
 	return nil
 }
 
+// generateSeccompProfile converts the configured seccomp profile
+// (RuntimeDefault, Unconfined or Localhost/<profile>) into its API representation.
+func generateSeccompProfile(profile string) *v1.SeccompProfile {
+	switch {
+	case profile == "":
+		return nil
+	case strings.HasPrefix(profile, string(v1.SeccompProfileTypeLocalhost)+"/"):
+		localhostProfile := strings.TrimPrefix(profile, string(v1.SeccompProfileTypeLocalhost)+"/")
+		return &v1.SeccompProfile{Type: v1.SeccompProfileTypeLocalhost, LocalhostProfile: &localhostProfile}
+	default:
+		return &v1.SeccompProfile{Type: v1.SeccompProfileType(profile)}
+	}
+}
+
+// applyContainerSecurityDefaults fills the container security context fields
+// that cannot be set on pod level (dropped capabilities and disallowed privilege
+// escalation) from the operator configuration. Fields a container already sets
+// are kept and privileged containers are left untouched. The containers and
+// their security contexts are copied, as they may be shared with the cluster
+// manifest or the operator configuration.
+func (c *Cluster) applyContainerSecurityDefaults(containers []v1.Container) []v1.Container {
+	dropCapabilities := make([]v1.Capability, 0, len(c.OpConfig.DropPodCapabilities))
+	for _, capability := range c.OpConfig.DropPodCapabilities {
+		dropCapabilities = append(dropCapabilities, v1.Capability(strings.ToUpper(capability)))
+	}
+	disallowPrivilegeEscalation := c.OpConfig.SpiloAllowPrivilegeEscalation != nil && !*c.OpConfig.SpiloAllowPrivilegeEscalation
+
+	if len(dropCapabilities) == 0 && !disallowPrivilegeEscalation {
+		return containers
+	}
+
+	result := make([]v1.Container, len(containers))
+	for i, container := range containers {
+		result[i] = container
+		securityContext := &v1.SecurityContext{}
+		if container.SecurityContext != nil {
+			securityContext = container.SecurityContext.DeepCopy()
+		}
+		if securityContext.Privileged != nil && *securityContext.Privileged {
+			continue
+		}
+		if len(dropCapabilities) > 0 && (securityContext.Capabilities == nil || len(securityContext.Capabilities.Drop) == 0) {
+			if securityContext.Capabilities == nil {
+				securityContext.Capabilities = &v1.Capabilities{}
+			}
+			securityContext.Capabilities.Drop = slices.Clone(dropCapabilities)
+		}
+		// the API server rejects allowPrivilegeEscalation=false together with CAP_SYS_ADMIN
+		if disallowPrivilegeEscalation && securityContext.AllowPrivilegeEscalation == nil && !addsSysAdmin(securityContext.Capabilities) {
+			securityContext.AllowPrivilegeEscalation = util.False()
+		}
+		result[i].SecurityContext = securityContext
+	}
+	return result
+}
+
+func addsSysAdmin(capabilities *v1.Capabilities) bool {
+	if capabilities == nil {
+		return false
+	}
+	for _, capability := range capabilities.Add {
+		if capability == "SYS_ADMIN" || capability == "CAP_SYS_ADMIN" {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *Cluster) nodeAffinity(nodeReadinessLabel map[string]string, nodeAffinity *v1.NodeAffinity) *v1.Affinity {
 	if len(nodeReadinessLabel) == 0 && nodeAffinity == nil {
 		return nil
@@ -863,6 +931,14 @@ func (c *Cluster) generatePodTemplate(
 	if c.Spec.SpiloFSGroup != nil {
 		securityContext.FSGroup = c.Spec.SpiloFSGroup
 	}
+
+	// pod level settings apply to all containers, including init containers,
+	// unless a container overrides them in its own security context
+	securityContext.RunAsNonRoot = c.OpConfig.Resources.SpiloRunAsNonRoot
+	securityContext.SeccompProfile = generateSeccompProfile(c.OpConfig.Resources.SpiloSeccompProfile)
+
+	containers = c.applyContainerSecurityDefaults(containers)
+	initContainers = c.applyContainerSecurityDefaults(initContainers)
 
 	podSpec := v1.PodSpec{
 		ServiceAccountName:            podServiceAccountName,

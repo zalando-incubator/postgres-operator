@@ -472,6 +472,41 @@ avoid sudden connection issues in pods which still use credentials of these
 users in memory. You have to remove these child users manually or re-enable
 password rotation with smaller interval so they get cleaned up.
 
+## Pod Security Standards
+
+To run Postgres clusters in namespaces enforcing the
+[`restricted` Pod Security Standard](https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted),
+configure Spilo to run as non-root and restrict the security context of all
+containers of the Postgres pods, including sidecars, init containers and the
+logical backup job:
+
+```yaml
+apiVersion: "acid.zalan.do/v1"
+kind: OperatorConfiguration
+metadata:
+  name: postgresql-configuration
+configuration:
+  kubernetes:
+    spilo_runasuser: 101
+    spilo_runasgroup: 103
+    spilo_fsgroup: 103
+    spilo_runasnonroot: true
+    spilo_allow_privilege_escalation: false
+    spilo_seccomp_profile: RuntimeDefault
+    drop_pod_capabilities:
+    - ALL
+```
+
+`spilo_runasgroup` must be the primary group of the `postgres` user in the
+Spilo image (`103`), otherwise Spilo's cron jobs (e.g. WAL-G basebackups) are
+not executed. Running as non-root, cron works without privilege escalation,
+only the optional `renice` job is skipped. Settings defined in the security
+context of a sidecar or init container take precedence, and privileged
+containers are left untouched.
+
+Changing these options updates the pod template of every Postgres cluster,
+which triggers a rolling update of all pods.
+
 ## Use taints and tolerations for dedicated PostgreSQL nodes
 
 To ensure Postgres pods are running on nodes without any other application pods,

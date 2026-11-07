@@ -544,14 +544,37 @@ configuration they are grouped under the `kubernetes` key.
 
 * **spilo_allow_privilege_escalation**
   Controls whether a process can gain more privileges than its parent
-  process. Required by cron which needs setuid. Without this parameter,
-  certification rotation & backups will not be done. The default is `true`.
+  process. Required by cron which needs setuid when Spilo runs as root. Without
+  this parameter, certification rotation & backups will not be done. Spilo
+  running as non-root (see `spilo_runasuser`) does not need it. When set to
+  `false`, `allowPrivilegeEscalation: false` is also set on sidecars, init
+  containers and the logical backup container, unless they define it themselves
+  or run privileged. The default is `true`.
 
 * **additional_pod_capabilities**
   list of additional capabilities to be added to the postgres container's
   SecurityContext (e.g. SYS_NICE etc.). Please, make sure first that the
   PodSecruityPolicy allows the capabilities listed here. Otherwise, the
   container will not start. The default is empty.
+
+* **drop_pod_capabilities**
+  list of capabilities to be dropped from the Spilo, sidecar, init and logical
+  backup containers, e.g. `ALL`. Containers that define their own dropped
+  capabilities or run privileged are left untouched. Capabilities listed in
+  `additional_pod_capabilities` are still added to the Spilo container. The
+  default is empty.
+
+* **spilo_runasnonroot**
+  sets `runAsNonRoot` in the pod security context of the Spilo and logical
+  backup pods, so the kubelet refuses to start any container running as root.
+  Requires a non-root `spilo_runasuser`. The default is empty (not set).
+
+* **spilo_seccomp_profile**
+  seccomp profile set in the pod security context of the Spilo and logical
+  backup pods, applying to all their containers unless they define their own.
+  Allowed values are `RuntimeDefault`, `Unconfined` and
+  `Localhost/<profile path>`. On OpenShift the SecurityContextConstraints of
+  the pods must allow the profile. The default is empty (not set).
 
 * **master_pod_move_timeout**
   The period of time to wait for the success of migration of master pods from

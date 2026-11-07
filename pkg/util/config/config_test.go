@@ -335,3 +335,37 @@ func TestNewFromMap(t *testing.T) {
 		})
 	}
 }
+
+func TestSecurityContextOptionsFromMap(t *testing.T) {
+	cfg := NewFromMap(map[string]string{})
+	if cfg.SpiloRunAsNonRoot != nil || cfg.SpiloSeccompProfile != "" || len(cfg.DropPodCapabilities) != 0 {
+		t.Errorf("expected security context options to be unset by default, got %v %q %v",
+			cfg.SpiloRunAsNonRoot, cfg.SpiloSeccompProfile, cfg.DropPodCapabilities)
+	}
+
+	cfg = NewFromMap(map[string]string{
+		"spilo_runasnonroot":    "true",
+		"spilo_seccomp_profile": "Localhost/profiles/postgres.json",
+		"drop_pod_capabilities": "ALL",
+	})
+	if cfg.SpiloRunAsNonRoot == nil || !*cfg.SpiloRunAsNonRoot {
+		t.Errorf("expected spilo_runasnonroot to be true")
+	}
+	if cfg.SpiloSeccompProfile != "Localhost/profiles/postgres.json" {
+		t.Errorf("unexpected spilo_seccomp_profile %q", cfg.SpiloSeccompProfile)
+	}
+	if !reflect.DeepEqual(cfg.DropPodCapabilities, []string{"ALL"}) {
+		t.Errorf("unexpected drop_pod_capabilities %v", cfg.DropPodCapabilities)
+	}
+
+	for _, profile := range []string{"RuntimeDefault", "Unconfined", "Localhost/x"} {
+		NewFromMap(map[string]string{"spilo_seccomp_profile": profile})
+	}
+
+	defer func() {
+		if r := recover(); r == nil || !strings.Contains(fmt.Sprint(r), "spilo_seccomp_profile") {
+			t.Errorf("expected panic for invalid spilo_seccomp_profile, got %v", r)
+		}
+	}()
+	NewFromMap(map[string]string{"spilo_seccomp_profile": "runtime/default"})
+}
