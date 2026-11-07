@@ -4722,3 +4722,176 @@ func TestTopologySpreadConstraints(t *testing.T) {
 	},
 	)
 }
+
+func TestSecurityContextOptions(t *testing.T) {
+	newSpec := func() acidv1.PostgresSpec {
+		return acidv1.PostgresSpec{
+			PostgresqlParam:   acidv1.PostgresqlParam{PgVersion: "18"},
+			TeamID:            "myapp",
+			NumberOfInstances: 1,
+			Volume:            acidv1.Volume{Size: "1G"},
+			InitContainers: []v1.Container{
+				{Name: "init", Image: "init-image"},
+				{
+					Name:  "init-with-own-security-context",
+					Image: "init-image",
+					SecurityContext: &v1.SecurityContext{
+						AllowPrivilegeEscalation: util.True(),
+						Capabilities:             &v1.Capabilities{Drop: []v1.Capability{"NET_RAW"}},
+						RunAsNonRoot:             util.False(),
+					},
+				},
+			},
+			Sidecars: []acidv1.Sidecar{{Name: "sidecar", DockerImage: "sidecar-image"}},
+		}
+	}
+	newConfig := func() config.Config {
+		return config.Config{
+			PodManagementPolicy: "ordered_ready",
+			ProtectedRoles:      []string{"admin"},
+			Auth: config.Auth{
+				SuperUsername:       superUserName,
+				ReplicationUsername: replicationUserName,
+			},
+			Resources: config.Resources{
+				SpiloAllowPrivilegeEscalation: util.True(),
+			},
+			SidecarContainers: []v1.Container{
+				{
+					Name:            "privileged-sidecar",
+					Image:           "sidecar-image",
+					SecurityContext: &v1.SecurityContext{Privileged: util.True()},
+				},
+			},
+		}
+	}
+	containerByName := func(containers []v1.Container, name string) v1.Container {
+		for _, container := range containers {
+			if container.Name == name {
+				return container
+			}
+		}
+		t.Fatalf("container %q not found", name)
+		return v1.Container{}
+	}
+
+	t.Run("defaults leave the security context unchanged", func(t *testing.T) {
+		spec := newSpec()
+		cluster := New(Config{OpConfig: newConfig()}, k8sutil.KubernetesClient{}, acidv1.Postgresql{}, logger, eventRecorder)
+		sts, err := cluster.generateStatefulSet(&spec)
+		assert.NoError(t, err)
+
+		podSpec := sts.Spec.Template.Spec
+		assert.Nil(t, podSpec.SecurityContext.RunAsNonRoot)
+		assert.Nil(t, podSpec.SecurityContext.SeccompProfile)
+		assert.Nil(t, containerByName(podSpec.Containers, constants.PostgresContainerName).SecurityContext.Capabilities)
+		assert.Nil(t, containerByName(podSpec.Containers, constants.PostgresContainerName).SecurityContext.RunAsNonRoot)
+		assert.Nil(t, containerByName(podSpec.Containers, "sidecar").SecurityContext)
+		assert.Equal(t, spec.InitContainers, podSpec.InitContainers)
+	})
+
+	t.Run("options apply to all containers including init containers", func(t *testing.T) {
+		spec := newSpec()
+		specInitContainers := []v1.Container{}
+		for _, container := range spec.InitContainers {
+			specInitContainers = append(specInitContainers, *container.DeepCopy())
+		}
+		opConfig := newConfig()
+		opConfig.SpiloRunAsNonRoot = util.True()
+		opConfig.SpiloSeccompProfile = "RuntimeDefault"
+		opConfig.SpiloAllowPrivilegeEscalation = util.False()
+		opConfig.DropPodCapabilities = []string{"all"}
+		cluster := New(Config{OpConfig: opConfig}, k8sutil.KubernetesClient{}, acidv1.Postgresql{}, logger, eventRecorder)
+		sts, err := cluster.generateStatefulSet(&spec)
+		assert.NoError(t, err)
+
+		podSpec := sts.Spec.Template.Spec
+		assert.Equal(t, util.True(), podSpec.SecurityContext.RunAsNonRoot)
+		assert.Equal(t, &v1.SeccompProfile{Type: v1.SeccompProfileTypeRuntimeDefault}, podSpec.SecurityContext.SeccompProfile)
+
+		for _, container := range []v1.Container{
+			containerByName(podSpec.Containers, constants.PostgresContainerName),
+			containerByName(podSpec.Containers, "sidecar"),
+			containerByName(podSpec.InitContainers, "init"),
+		} {
+			assert.Equal(t, util.False(), container.SecurityContext.AllowPrivilegeEscalation, "container %s", container.Name)
+			assert.Equal(t, []v1.Capability{"ALL"}, container.SecurityContext.Capabilities.Drop, "container %s", container.Name)
+			assert.Equal(t, util.True(), container.SecurityContext.RunAsNonRoot, "container %s", container.Name)
+		}
+
+		// settings of the container itself win
+		initContainer := containerByName(podSpec.InitContainers, "init-with-own-security-context")
+		assert.Equal(t, util.True(), initContainer.SecurityContext.AllowPrivilegeEscalation)
+		assert.Equal(t, []v1.Capability{"NET_RAW"}, initContainer.SecurityContext.Capabilities.Drop)
+		assert.Equal(t, util.False(), initContainer.SecurityContext.RunAsNonRoot)
+
+		// privileged containers are left untouched
+		privilegedSidecar := containerByName(podSpec.Containers, "privileged-sidecar")
+		assert.Equal(t, &v1.SecurityContext{Privileged: util.True()}, privilegedSidecar.SecurityContext)
+
+		// the cluster manifest and the operator configuration are not modified
+		assert.Equal(t, specInitContainers, spec.InitContainers)
+		assert.Equal(t, &v1.SecurityContext{Privileged: util.True()}, opConfig.SidecarContainers[0].SecurityContext)
+	})
+
+	t.Run("allowPrivilegeEscalation is not disabled for containers adding SYS_ADMIN", func(t *testing.T) {
+		spec := newSpec()
+		spec.InitContainers = []v1.Container{{
+			Name:            "init",
+			Image:           "init-image",
+			SecurityContext: &v1.SecurityContext{Capabilities: &v1.Capabilities{Add: []v1.Capability{"SYS_ADMIN"}}},
+		}}
+		opConfig := newConfig()
+		opConfig.SpiloAllowPrivilegeEscalation = util.False()
+		cluster := New(Config{OpConfig: opConfig}, k8sutil.KubernetesClient{}, acidv1.Postgresql{}, logger, eventRecorder)
+		sts, err := cluster.generateStatefulSet(&spec)
+		assert.NoError(t, err)
+		assert.Nil(t, sts.Spec.Template.Spec.InitContainers[0].SecurityContext.AllowPrivilegeEscalation)
+	})
+
+	t.Run("invalid seccomp profile fails the statefulset generation", func(t *testing.T) {
+		spec := newSpec()
+		opConfig := newConfig()
+		opConfig.SpiloSeccompProfile = "runtime/default"
+		cluster := New(Config{OpConfig: opConfig}, k8sutil.KubernetesClient{}, acidv1.Postgresql{}, logger, eventRecorder)
+		_, err := cluster.generateStatefulSet(&spec)
+		assert.ErrorContains(t, err, "spilo_seccomp_profile")
+	})
+
+	t.Run("options apply to the logical backup job", func(t *testing.T) {
+		opConfig := newConfig()
+		opConfig.SpiloRunAsNonRoot = util.True()
+		opConfig.SpiloSeccompProfile = "Localhost/profiles/postgres.json"
+		opConfig.SpiloAllowPrivilegeEscalation = util.False()
+		opConfig.DropPodCapabilities = []string{"ALL"}
+		opConfig.LogicalBackup = config.LogicalBackup{LogicalBackupJobPrefix: "logical-backup-", LogicalBackupSchedule: "30 00 * * *"}
+		cluster := New(Config{OpConfig: opConfig}, k8sutil.NewMockKubernetesClient(), acidv1.Postgresql{}, logger, eventRecorder)
+		cluster.Name = "acid-test-cluster"
+		cronJob, err := cluster.generateLogicalBackupJob()
+		assert.NoError(t, err)
+
+		podSpec := cronJob.Spec.JobTemplate.Spec.Template.Spec
+		localhostProfile := "profiles/postgres.json"
+		assert.Equal(t, util.True(), podSpec.SecurityContext.RunAsNonRoot)
+		assert.Equal(t, &v1.SeccompProfile{Type: v1.SeccompProfileTypeLocalhost, LocalhostProfile: &localhostProfile}, podSpec.SecurityContext.SeccompProfile)
+		assert.Equal(t, util.False(), podSpec.Containers[0].SecurityContext.AllowPrivilegeEscalation)
+		assert.Equal(t, []v1.Capability{"ALL"}, podSpec.Containers[0].SecurityContext.Capabilities.Drop)
+		assert.Equal(t, util.True(), podSpec.Containers[0].SecurityContext.RunAsNonRoot)
+	})
+
+	t.Run("runAsNonRoot alone is set on pod and container level", func(t *testing.T) {
+		spec := newSpec()
+		opConfig := newConfig()
+		opConfig.SpiloRunAsNonRoot = util.True()
+		cluster := New(Config{OpConfig: opConfig}, k8sutil.KubernetesClient{}, acidv1.Postgresql{}, logger, eventRecorder)
+		sts, err := cluster.generateStatefulSet(&spec)
+		assert.NoError(t, err)
+
+		podSpec := sts.Spec.Template.Spec
+		assert.Equal(t, util.True(), podSpec.SecurityContext.RunAsNonRoot)
+		spiloContainer := containerByName(podSpec.Containers, constants.PostgresContainerName)
+		assert.Equal(t, util.True(), spiloContainer.SecurityContext.RunAsNonRoot)
+		assert.Nil(t, spiloContainer.SecurityContext.Capabilities)
+		assert.Equal(t, util.True(), spiloContainer.SecurityContext.AllowPrivilegeEscalation)
+	})
+}

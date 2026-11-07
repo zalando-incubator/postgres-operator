@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	v1 "k8s.io/api/core/v1"
 )
 
 func TestMain(m *testing.M) {
@@ -331,6 +333,75 @@ func TestNewFromMap(t *testing.T) {
 
 			if tt.validateFunc != nil {
 				tt.validateFunc(t, cfg)
+			}
+		})
+	}
+}
+
+func TestSecurityContextOptionsFromMap(t *testing.T) {
+	cfg := NewFromMap(map[string]string{})
+	if cfg.SpiloRunAsNonRoot != nil || cfg.SpiloSeccompProfile != "" || len(cfg.DropPodCapabilities) != 0 {
+		t.Errorf("expected security context options to be unset by default, got %v %q %v",
+			cfg.SpiloRunAsNonRoot, cfg.SpiloSeccompProfile, cfg.DropPodCapabilities)
+	}
+
+	cfg = NewFromMap(map[string]string{
+		"spilo_run_as_non_root": "true",
+		"spilo_seccomp_profile": "Localhost/profiles/postgres.json",
+		"drop_pod_capabilities": "ALL",
+	})
+	if cfg.SpiloRunAsNonRoot == nil || !*cfg.SpiloRunAsNonRoot {
+		t.Errorf("expected spilo_run_as_non_root to be true")
+	}
+	if cfg.SpiloSeccompProfile != "Localhost/profiles/postgres.json" {
+		t.Errorf("unexpected spilo_seccomp_profile %q", cfg.SpiloSeccompProfile)
+	}
+	if !reflect.DeepEqual(cfg.DropPodCapabilities, []string{"ALL"}) {
+		t.Errorf("unexpected drop_pod_capabilities %v", cfg.DropPodCapabilities)
+	}
+
+	for _, profile := range []string{"RuntimeDefault", "Unconfined", "Localhost/x"} {
+		NewFromMap(map[string]string{"spilo_seccomp_profile": profile})
+	}
+
+	defer func() {
+		if r := recover(); r == nil || !strings.Contains(fmt.Sprint(r), "spilo_seccomp_profile") {
+			t.Errorf("expected panic for invalid spilo_seccomp_profile, got %v", r)
+		}
+	}()
+	NewFromMap(map[string]string{"spilo_seccomp_profile": "runtime/default"})
+}
+
+func TestSeccompProfile(t *testing.T) {
+	localhostProfile := "profiles/postgres.json"
+	for _, tt := range []struct {
+		profile  string
+		expected *v1.SeccompProfile
+		wantErr  bool
+	}{
+		{profile: "", expected: nil},
+		{profile: "RuntimeDefault", expected: &v1.SeccompProfile{Type: v1.SeccompProfileTypeRuntimeDefault}},
+		{profile: "Unconfined", expected: &v1.SeccompProfile{Type: v1.SeccompProfileTypeUnconfined}},
+		{profile: "Localhost/profiles/postgres.json", expected: &v1.SeccompProfile{Type: v1.SeccompProfileTypeLocalhost, LocalhostProfile: &localhostProfile}},
+		{profile: "Localhost/", wantErr: true},
+		{profile: "Localhost", wantErr: true},
+		{profile: "runtime/default", wantErr: true},
+		{profile: "runtimedefault", wantErr: true},
+		{profile: "RuntimeDefault ", wantErr: true},
+	} {
+		t.Run(tt.profile, func(t *testing.T) {
+			got, err := SeccompProfile(tt.profile)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected an error, got %v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("expected %v, got %v", tt.expected, got)
 			}
 		})
 	}

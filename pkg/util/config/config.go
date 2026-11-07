@@ -12,6 +12,24 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// SeccompProfile converts a seccomp profile option (RuntimeDefault, Unconfined
+// or Localhost/<profile>) into its API representation. An empty value means no
+// profile is set.
+func SeccompProfile(profile string) (*v1.SeccompProfile, error) {
+	localhostPrefix := string(v1.SeccompProfileTypeLocalhost) + "/"
+	switch {
+	case profile == "":
+		return nil, nil
+	case profile == string(v1.SeccompProfileTypeRuntimeDefault), profile == string(v1.SeccompProfileTypeUnconfined):
+		return &v1.SeccompProfile{Type: v1.SeccompProfileType(profile)}, nil
+	case strings.HasPrefix(profile, localhostPrefix) && len(profile) > len(localhostPrefix):
+		localhostProfile := strings.TrimPrefix(profile, localhostPrefix)
+		return &v1.SeccompProfile{Type: v1.SeccompProfileTypeLocalhost, LocalhostProfile: &localhostProfile}, nil
+	default:
+		return nil, fmt.Errorf("invalid seccomp profile %q, expected RuntimeDefault, Unconfined or Localhost/<profile>", profile)
+	}
+}
+
 // CRD describes CustomResourceDefinition specific configuration parameters
 type CRD struct {
 	ReadyWaitInterval     *metav1.Duration `name:"ready_wait_interval" default:"4s"`
@@ -39,6 +57,9 @@ type Resources struct {
 	SpiloPrivileged               bool                `name:"spilo_privileged" default:"false"`
 	SpiloAllowPrivilegeEscalation *bool               `name:"spilo_allow_privilege_escalation" default:"true"`
 	AdditionalPodCapabilities     []string            `name:"additional_pod_capabilities" default:""`
+	DropPodCapabilities           []string            `name:"drop_pod_capabilities" default:""`
+	SpiloRunAsNonRoot             *bool               `name:"spilo_run_as_non_root"`
+	SpiloSeccompProfile           string              `name:"spilo_seccomp_profile"`
 	ClusterLabels                 map[string]string   `name:"cluster_labels" default:"application:spilo"`
 	InheritedLabels               []string            `name:"inherited_labels" default:""`
 	InheritedAnnotations          []string            `name:"inherited_annotations" default:""`
@@ -331,6 +352,10 @@ func validate(cfg *Config) (err error) {
 	if cfg.ConnectionPooler.User == cfg.SuperUsername {
 		msg := "connection pool user is not allowed to be the same as super user, username: %s"
 		err = fmt.Errorf(msg, cfg.ConnectionPooler.User)
+	}
+
+	if _, seccompErr := SeccompProfile(cfg.SpiloSeccompProfile); seccompErr != nil {
+		err = fmt.Errorf("spilo_seccomp_profile: %v", seccompErr)
 	}
 
 	return

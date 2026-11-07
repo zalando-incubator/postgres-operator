@@ -86,7 +86,11 @@ type KubernetesMetaConfiguration struct {
 	SpiloRunAsGroup               *int64   `json:"spilo_runasgroup,omitempty"`
 	SpiloFSGroup                  *int64   `json:"spilo_fsgroup,omitempty"`
 	AdditionalPodCapabilities     []string `json:"additional_pod_capabilities,omitempty"`
+	DropPodCapabilities           []string `json:"drop_pod_capabilities,omitempty"`
+	SpiloRunAsNonRoot             *bool    `json:"spilo_run_as_non_root,omitempty"`
 	WatchedNamespace              string   `json:"watched_namespace,omitempty"`
+	// +kubebuilder:validation:Pattern=`^(RuntimeDefault|Unconfined|Localhost/.+)?$`
+	SpiloSeccompProfile string `json:"spilo_seccomp_profile,omitempty"`
 	// +kubebuilder:default="postgres-{cluster}-pdb"
 	// defines the template for PDB names
 	PDBNameFormat config.StringTemplate `json:"pdb_name_format,omitempty"`

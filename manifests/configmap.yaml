@@ -5,6 +5,7 @@ metadata:
 data:
   # additional_owner_roles: "cron_admin"
   # additional_pod_capabilities: "SYS_NICE"
+  # drop_pod_capabilities: "ALL"
   # additional_secret_mount: "some-secret-name"
   # additional_secret_mount_path: "/some/dir"
   api_port: "8080"
@@ -160,6 +161,8 @@ data:
   # spilo_runasuser: 101
   # spilo_runasgroup: 103
   # spilo_fsgroup: 103
+  # spilo_run_as_non_root: "true"
+  # spilo_seccomp_profile: "RuntimeDefault"
   spilo_privileged: "false"
   storage_resize_mode: "pvc"
   super_username: postgres

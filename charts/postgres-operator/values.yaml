@@ -229,8 +229,15 @@ configKubernetes:
   # whether the Spilo container should run in privileged mode
   spilo_privileged: false
   # whether the Spilo container should run with additional permissions other than parent.
-  # required by cron which needs setuid
+  # required by cron which needs setuid when Spilo runs as root
   spilo_allow_privilege_escalation: true
+  # refuse to start containers of the Spilo pods running as root
+  # spilo_run_as_non_root: true
+  # seccomp profile for the Spilo pods: RuntimeDefault, Unconfined or Localhost/<profile>
+  # spilo_seccomp_profile: RuntimeDefault
+  # list of capabilities to drop from the containers of the Spilo pods
+  # drop_pod_capabilities:
+  # - "ALL"
 
   # liveness probe for the spilo pod
   # liveness_probe:
