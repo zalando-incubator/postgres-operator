@@ -1218,6 +1218,29 @@ The `enableConnectionPooler` flag is not required when the `connectionPooler`
 section is present in the manifest. But, it can be used to disable/remove the
 pooler while keeping its configuration.
 
+By default the `connectionPooler` section configures both poolers. To give the
+replica pooler different settings, add a `replicaConnectionPooler` section
+containing only the values that should differ:
+
+```
+spec:
+  enableConnectionPooler: true
+  enableReplicaConnectionPooler: true
+  connectionPooler:
+    numberOfInstances: 2
+    mode: "transaction"
+  replicaConnectionPooler:
+    # the replica pooler runs more instances in session mode, everything
+    # else is inherited from connectionPooler
+    numberOfInstances: 4
+    mode: "session"
+```
+
+Unlike `connectionPooler`, this section does not enable anything on its own -
+`enableReplicaConnectionPooler` is still required. It also does not accept
+`schema` or `user`, because both poolers connect through the same database
+objects, which are created once per cluster from `connectionPooler`.
+
 By default, [`PgBouncer`](https://www.pgbouncer.org/) is used as connection pooler.
 To find out about pool modes read the `PgBouncer` [docs](https://www.pgbouncer.org/config.html#pooler_mode)
 (but it should be the general approach between different implementation).

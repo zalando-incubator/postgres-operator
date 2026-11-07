@@ -43,9 +43,10 @@ type PostgresSpec struct {
 	Patroni    `json:"patroni"`
 	*Resources `json:"resources,omitempty"`
 
-	EnableConnectionPooler        *bool             `json:"enableConnectionPooler,omitempty"`
-	EnableReplicaConnectionPooler *bool             `json:"enableReplicaConnectionPooler,omitempty"`
-	ConnectionPooler              *ConnectionPooler `json:"connectionPooler,omitempty"`
+	EnableConnectionPooler        *bool                    `json:"enableConnectionPooler,omitempty"`
+	EnableReplicaConnectionPooler *bool                    `json:"enableReplicaConnectionPooler,omitempty"`
+	ConnectionPooler              *ConnectionPooler        `json:"connectionPooler,omitempty"`
+	ReplicaConnectionPooler       *ReplicaConnectionPooler `json:"replicaConnectionPooler,omitempty"`
 
 	TeamID      string `json:"teamId"`
 	DockerImage string `json:"dockerImage,omitempty"`
@@ -326,6 +327,23 @@ type ConnectionPooler struct {
 	NumberOfInstances *int32 `json:"numberOfInstances,omitempty"`
 	Schema            string `json:"schema,omitempty"`
 	User              string `json:"user,omitempty"`
+	// +kubebuilder:validation:Enum=session;transaction
+	Mode             string `json:"mode,omitempty"`
+	DockerImage      string `json:"dockerImage,omitempty"`
+	MaxDBConnections *int32 `json:"maxDBConnections,omitempty"`
+
+	*Resources `json:"resources,omitempty"`
+}
+
+// ReplicaConnectionPooler overrides connection pooler settings for the replica
+// pooler. Fields left unset fall back to the values under connectionPooler, so a
+// manifest only has to spell out what differs between the two poolers. The pooler
+// user and schema are intentionally not exposed here: both poolers authenticate
+// through the same database objects, which are created once per cluster from
+// connectionPooler.
+type ReplicaConnectionPooler struct {
+	// +kubebuilder:validation:Minimum=1
+	NumberOfInstances *int32 `json:"numberOfInstances,omitempty"`
 	// +kubebuilder:validation:Enum=session;transaction
 	Mode             string `json:"mode,omitempty"`
 	DockerImage      string `json:"dockerImage,omitempty"`

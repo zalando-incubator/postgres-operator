@@ -2488,6 +2488,115 @@ spec:
                       type: string
                   type: object
                 type: object
+              replicaConnectionPooler:
+                description: |-
+                  ReplicaConnectionPooler overrides connection pooler settings for the replica
+                  pooler. Fields left unset fall back to the values under connectionPooler, so a
+                  manifest only has to spell out what differs between the two poolers. The pooler
+                  user and schema are intentionally not exposed here: both poolers authenticate
+                  through the same database objects, which are created once per cluster from
+                  connectionPooler.
+                properties:
+                  dockerImage:
+                    type: string
+                  maxDBConnections:
+                    format: int32
+                    type: integer
+                  mode:
+                    enum:
+                    - session
+                    - transaction
+                    type: string
+                  numberOfInstances:
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  resources:
+                    description: Resources describes requests and limits for the cluster
+                      resouces.
+                    properties:
+                      limits:
+                        description: ResourceDescription describes CPU and memory
+                          resources defined for a cluster.
+                        properties:
+                          cpu:
+                            description: |-
+                              Decimal natural followed by m, or decimal natural followed by
+                              dot followed by up to three decimal digits.
+
+                              This is because the Kubernetes CPU resource has millis as the
+                              maximum precision.  The actual values are checked in code
+                              because the regular expression would be huge and horrible and
+                              not very helpful in validation error messages; this one checks
+                              only the format of the given number.
+
+                              https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/#meaning-of-cpu
+
+                              Note: the value specified here must not be zero or be lower
+                              than the corresponding request.
+                            pattern: ^(\d+m|\d+(\.\d{1,3})?)$
+                            type: string
+                          hugepages-1Gi:
+                            pattern: ^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$
+                            type: string
+                          hugepages-2Mi:
+                            pattern: ^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$
+                            type: string
+                          memory:
+                            description: |-
+                              You can express memory as a plain integer or as a fixed-point
+                              integer using one of these suffixes: E, P, T, G, M, k. You can
+                              also use the power-of-two equivalents: Ei, Pi, Ti, Gi, Mi, Ki
+
+                              https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/#meaning-of-memory
+
+                              Note: the value specified here must not be zero or be higher
+                              than the corresponding limit.
+                            pattern: ^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$
+                            type: string
+                        type: object
+                      requests:
+                        description: ResourceDescription describes CPU and memory
+                          resources defined for a cluster.
+                        properties:
+                          cpu:
+                            description: |-
+                              Decimal natural followed by m, or decimal natural followed by
+                              dot followed by up to three decimal digits.
+
+                              This is because the Kubernetes CPU resource has millis as the
+                              maximum precision.  The actual values are checked in code
+                              because the regular expression would be huge and horrible and
+                              not very helpful in validation error messages; this one checks
+                              only the format of the given number.
+
+                              https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/#meaning-of-cpu
+
+                              Note: the value specified here must not be zero or be lower
+                              than the corresponding request.
+                            pattern: ^(\d+m|\d+(\.\d{1,3})?)$
+                            type: string
+                          hugepages-1Gi:
+                            pattern: ^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$
+                            type: string
+                          hugepages-2Mi:
+                            pattern: ^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$
+                            type: string
+                          memory:
+                            description: |-
+                              You can express memory as a plain integer or as a fixed-point
+                              integer using one of these suffixes: E, P, T, G, M, k. You can
+                              also use the power-of-two equivalents: Ei, Pi, Ti, Gi, Mi, Ki
+
+                              https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/#meaning-of-memory
+
+                              Note: the value specified here must not be zero or be higher
+                              than the corresponding limit.
+                            pattern: ^(\d+(e\d+)?|\d+(\.\d+)?(e\d+)?[EPTGMK]i?)$
+                            type: string
+                        type: object
+                    type: object
+                type: object
               replicaNodePort:
                 format: int32
                 type: integer

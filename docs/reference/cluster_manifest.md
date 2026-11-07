@@ -634,7 +634,8 @@ configuration for connection pooler. If this section is not empty, a connection
 pooler will be created for master service only even if `enableConnectionPooler`
 is not present. But if this section is present then it defines the configuration
 for both master and replica pooler services (if `enableReplicaConnectionPooler`
- is enabled).
+ is enabled), unless individual settings are overridden under
+`replicaConnectionPooler`.
 
 * **numberOfInstances**
   How many instances of connection pooler to create.
@@ -658,6 +659,35 @@ for both master and replica pooler services (if `enableReplicaConnectionPooler`
 
 * **resources**
   Resource configuration for connection pooler deployment.
+
+## Replica connection pooler
+
+Parameters are grouped under the `replicaConnectionPooler` top-level key and
+override the `connectionPooler` settings for the replica pooler only. Any field
+left out here falls back to `connectionPooler`, so a manifest only has to spell
+out what differs between the two poolers. This section does not create anything
+on its own - `enableReplicaConnectionPooler` is still what enables the replica
+pooler.
+
+The `schema` and `user` parameters are deliberately not available here. Both
+poolers authenticate through the same database objects, which are created once
+per cluster from `connectionPooler`.
+
+* **numberOfInstances**
+  How many instances of the replica connection pooler to create.
+
+* **dockerImage**
+  Which docker image to use for the replica connection pooler deployment.
+
+* **maxDBConnections**
+  How many connections the replica pooler can max hold. This value is divided
+  among the pooler pods.
+
+* **mode**
+  In which mode to run the replica connection pooler, transaction or session.
+
+* **resources**
+  Resource configuration for the replica connection pooler deployment.
 
 ## Custom TLS certificates
 

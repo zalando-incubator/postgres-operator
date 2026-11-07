@@ -268,6 +268,213 @@ func TestNeedConnectionPooler(t *testing.T) {
 	}
 }
 
+func TestEffectiveConnectionPoolerSpec(t *testing.T) {
+	masterCPU := "100m"
+	replicaCPU := "200m"
+	masterResources := &acidv1.Resources{
+		ResourceRequests: acidv1.ResourceDescription{CPU: &masterCPU},
+	}
+	replicaResources := &acidv1.Resources{
+		ResourceRequests: acidv1.ResourceDescription{CPU: &replicaCPU},
+	}
+
+	master := &acidv1.ConnectionPooler{
+		NumberOfInstances: k8sutil.Int32ToPointer(2),
+		Schema:            "pooler",
+		User:              "pooler",
+		Mode:              "transaction",
+		DockerImage:       "master-image",
+		MaxDBConnections:  k8sutil.Int32ToPointer(60),
+		Resources:         masterResources,
+	}
+
+	tests := []struct {
+		subTest  string
+		spec     acidv1.PostgresSpec
+		role     PostgresRole
+		expected *acidv1.ConnectionPooler
+	}{
+		{
+			subTest:  "no pooler section at all still yields a non-nil spec",
+			spec:     acidv1.PostgresSpec{},
+			role:     Master,
+			expected: &acidv1.ConnectionPooler{},
+		},
+		{
+			subTest: "master ignores replicaConnectionPooler entirely",
+			spec: acidv1.PostgresSpec{
+				ConnectionPooler: master,
+				ReplicaConnectionPooler: &acidv1.ReplicaConnectionPooler{
+					NumberOfInstances: k8sutil.Int32ToPointer(5),
+					Mode:              "session",
+				},
+			},
+			role:     Master,
+			expected: master,
+		},
+		{
+			subTest: "replica without an override matches connectionPooler",
+			spec: acidv1.PostgresSpec{
+				ConnectionPooler: master,
+			},
+			role:     Replica,
+			expected: master,
+		},
+		{
+			subTest: "replica inherits the fields it does not override",
+			spec: acidv1.PostgresSpec{
+				ConnectionPooler: master,
+				ReplicaConnectionPooler: &acidv1.ReplicaConnectionPooler{
+					NumberOfInstances: k8sutil.Int32ToPointer(5),
+				},
+			},
+			role: Replica,
+			expected: &acidv1.ConnectionPooler{
+				NumberOfInstances: k8sutil.Int32ToPointer(5),
+				Schema:            "pooler",
+				User:              "pooler",
+				Mode:              "transaction",
+				DockerImage:       "master-image",
+				MaxDBConnections:  k8sutil.Int32ToPointer(60),
+				Resources:         masterResources,
+			},
+		},
+		{
+			subTest: "replica overrides every field it carries, user and schema still inherited",
+			spec: acidv1.PostgresSpec{
+				ConnectionPooler: master,
+				ReplicaConnectionPooler: &acidv1.ReplicaConnectionPooler{
+					NumberOfInstances: k8sutil.Int32ToPointer(5),
+					Mode:              "session",
+					DockerImage:       "replica-image",
+					MaxDBConnections:  k8sutil.Int32ToPointer(10),
+					Resources:         replicaResources,
+				},
+			},
+			role: Replica,
+			expected: &acidv1.ConnectionPooler{
+				NumberOfInstances: k8sutil.Int32ToPointer(5),
+				Schema:            "pooler",
+				User:              "pooler",
+				Mode:              "session",
+				DockerImage:       "replica-image",
+				MaxDBConnections:  k8sutil.Int32ToPointer(10),
+				Resources:         replicaResources,
+			},
+		},
+		{
+			subTest: "replicaConnectionPooler alone, with no connectionPooler section",
+			spec: acidv1.PostgresSpec{
+				ReplicaConnectionPooler: &acidv1.ReplicaConnectionPooler{
+					NumberOfInstances: k8sutil.Int32ToPointer(5),
+				},
+			},
+			role: Replica,
+			expected: &acidv1.ConnectionPooler{
+				NumberOfInstances: k8sutil.Int32ToPointer(5),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		spec := tt.spec
+		assert.Equal(t, tt.expected, effectiveConnectionPoolerSpec(&spec, tt.role), tt.subTest)
+	}
+}
+
+func TestReplicaConnectionPoolerSyncOnOverrideChange(t *testing.T) {
+	testName := "changing replicaConnectionPooler rolls the replica pooler only"
+	namespace := "default"
+
+	clientSet := fake.NewSimpleClientset()
+	acidClientSet := fakeacidv1.NewSimpleClientset()
+	client := k8sutil.KubernetesClient{
+		StatefulSetsGetter: clientSet.AppsV1(),
+		ServicesGetter:     clientSet.CoreV1(),
+		PodsGetter:         clientSet.CoreV1(),
+		DeploymentsGetter:  clientSet.AppsV1(),
+		PostgresqlsGetter:  acidClientSet.AcidV1(),
+		SecretsGetter:      clientSet.CoreV1(),
+	}
+
+	poolerSpec := func(replicaInstances int32) acidv1.PostgresSpec {
+		return acidv1.PostgresSpec{
+			Volume:                        acidv1.Volume{Size: "1Gi"},
+			EnableConnectionPooler:        boolToPointer(true),
+			EnableReplicaConnectionPooler: boolToPointer(true),
+			ConnectionPooler: &acidv1.ConnectionPooler{
+				NumberOfInstances: k8sutil.Int32ToPointer(2),
+			},
+			ReplicaConnectionPooler: &acidv1.ReplicaConnectionPooler{
+				NumberOfInstances: k8sutil.Int32ToPointer(replicaInstances),
+			},
+		}
+	}
+
+	pg := acidv1.Postgresql{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "acid-fake-cluster",
+			Namespace: namespace,
+		},
+		Spec: poolerSpec(2),
+	}
+
+	var cluster = New(
+		Config{
+			OpConfig: config.Config{
+				ConnectionPooler: config.ConnectionPooler{
+					ConnectionPoolerDefaultCPURequest:    "100m",
+					ConnectionPoolerDefaultCPULimit:      "100m",
+					ConnectionPoolerDefaultMemoryRequest: "100Mi",
+					ConnectionPoolerDefaultMemoryLimit:   "100Mi",
+					NumberOfInstances:                    k8sutil.Int32ToPointer(1),
+				},
+				PodManagementPolicy: "ordered_ready",
+				Resources: config.Resources{
+					ClusterLabels:        map[string]string{"application": "spilo"},
+					ClusterNameLabel:     "cluster-name",
+					DefaultCPURequest:    "300m",
+					DefaultCPULimit:      "300m",
+					DefaultMemoryRequest: "300Mi",
+					DefaultMemoryLimit:   "300Mi",
+					PodRoleLabel:         "spilo-role",
+				},
+			},
+		}, client, pg, logger, eventRecorder)
+
+	cluster.Name = "acid-fake-cluster"
+	cluster.Namespace = namespace
+
+	_, err := cluster.createService(Master)
+	assert.NoError(t, err)
+	_, err = cluster.createStatefulSet()
+	assert.NoError(t, err)
+
+	_, err = cluster.createConnectionPooler(mockInstallLookupFunction)
+	assert.NoError(t, err)
+
+	assert.Equal(t, int32(2), *cluster.ConnectionPooler[Master].Deployment.Spec.Replicas,
+		testName+": master pooler starts with the connectionPooler instance count")
+	assert.Equal(t, int32(2), *cluster.ConnectionPooler[Replica].Deployment.Spec.Replicas,
+		testName+": replica pooler starts with the replicaConnectionPooler instance count")
+
+	// only replicaConnectionPooler changes between the two specs
+	oldSpec := &acidv1.Postgresql{Spec: poolerSpec(2)}
+	newSpec := &acidv1.Postgresql{Spec: poolerSpec(4)}
+	cluster.Spec = newSpec.Spec
+
+	_, err = cluster.syncConnectionPooler(oldSpec, newSpec, mockInstallLookupFunction)
+	assert.NoError(t, err)
+
+	// if the sync comparison is not role-aware it sees no change here, the
+	// deployment is never regenerated and the replica pooler silently keeps
+	// running the old instance count
+	assert.Equal(t, int32(4), *cluster.ConnectionPooler[Replica].Deployment.Spec.Replicas,
+		testName+": replica pooler must pick up the new replicaConnectionPooler instance count")
+	assert.Equal(t, int32(2), *cluster.ConnectionPooler[Master].Deployment.Spec.Replicas,
+		testName+": master pooler must be unaffected by a replicaConnectionPooler change")
+}
+
 func TestConnectionPoolerCreateDeletion(t *testing.T) {
 
 	testName := "test connection pooler creation and deletion"

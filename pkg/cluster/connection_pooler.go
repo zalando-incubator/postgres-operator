@@ -89,6 +89,41 @@ func (c *Cluster) needConnectionPoolerUser(oldSpec, newSpec *acidv1.PostgresSpec
 			c.poolerUser(oldSpec) != c.poolerUser(newSpec))
 }
 
+// effectiveConnectionPoolerSpec returns the pooler configuration that applies to
+// role. For the replica pooler, values set in replicaConnectionPooler win, and
+// anything left unset there falls back to connectionPooler - so a manifest that
+// does not use replicaConnectionPooler keeps the behaviour it has today. The
+// result is never nil, which removes the nil check each caller used to repeat.
+func effectiveConnectionPoolerSpec(spec *acidv1.PostgresSpec, role PostgresRole) *acidv1.ConnectionPooler {
+	effective := &acidv1.ConnectionPooler{}
+	if spec.ConnectionPooler != nil {
+		*effective = *spec.ConnectionPooler
+	}
+
+	if role != Replica || spec.ReplicaConnectionPooler == nil {
+		return effective
+	}
+
+	override := spec.ReplicaConnectionPooler
+	if override.NumberOfInstances != nil {
+		effective.NumberOfInstances = override.NumberOfInstances
+	}
+	if override.Mode != "" {
+		effective.Mode = override.Mode
+	}
+	if override.DockerImage != "" {
+		effective.DockerImage = override.DockerImage
+	}
+	if override.MaxDBConnections != nil {
+		effective.MaxDBConnections = override.MaxDBConnections
+	}
+	if override.Resources != nil {
+		effective.Resources = override.Resources
+	}
+
+	return effective
+}
+
 func (c *Cluster) poolerUser(spec *acidv1.PostgresSpec) string {
 	connectionPoolerSpec := spec.ConnectionPooler
 	if connectionPoolerSpec == nil {
@@ -221,12 +256,9 @@ func (c *Cluster) generateConnectionPoolerAuthSecret(connectionPooler *Connectio
 //
 // RESERVE_SIZE is how many additional connections to allow for a pooler.
 
-func (c *Cluster) getConnectionPoolerEnvVars() []v1.EnvVar {
+func (c *Cluster) getConnectionPoolerEnvVars(role PostgresRole) []v1.EnvVar {
 	spec := &c.Spec
-	connectionPoolerSpec := spec.ConnectionPooler
-	if connectionPoolerSpec == nil {
-		connectionPoolerSpec = &acidv1.ConnectionPooler{}
-	}
+	connectionPoolerSpec := effectiveConnectionPoolerSpec(spec, role)
 	effectiveMode := util.Coalesce(
 		connectionPoolerSpec.Mode,
 		c.OpConfig.ConnectionPooler.Mode)
@@ -294,10 +326,7 @@ func (c *Cluster) getConnectionPoolerEnvVars() []v1.EnvVar {
 func (c *Cluster) generateConnectionPoolerPodTemplate(role PostgresRole) (
 	*v1.PodTemplateSpec, error) {
 	spec := &c.Spec
-	connectionPoolerSpec := spec.ConnectionPooler
-	if connectionPoolerSpec == nil {
-		connectionPoolerSpec = &acidv1.ConnectionPooler{}
-	}
+	connectionPoolerSpec := effectiveConnectionPoolerSpec(spec, role)
 	gracePeriod := int64(util.CoalesceDuration(c.OpConfig.PodTerminateGracePeriod, "5m").Seconds())
 	resources, err := c.generateResourceRequirements(
 		connectionPoolerSpec.Resources,
@@ -357,7 +386,7 @@ func (c *Cluster) generateConnectionPoolerPodTemplate(role PostgresRole) (
 			},
 		},
 	}
-	envVars = append(envVars, c.getConnectionPoolerEnvVars()...)
+	envVars = append(envVars, c.getConnectionPoolerEnvVars(role)...)
 
 	infraRolesList := make([]string, 0)
 	for infraRoleName := range c.InfrastructureRoles {
@@ -507,10 +536,7 @@ func (c *Cluster) generateConnectionPoolerDeployment(connectionPooler *Connectio
 	// default values, initialize it to an empty structure. It could be done
 	// anywhere, but here is the earliest common entry point between sync and
 	// create code, so init here.
-	connectionPoolerSpec := spec.ConnectionPooler
-	if connectionPoolerSpec == nil {
-		connectionPoolerSpec = &acidv1.ConnectionPooler{}
-	}
+	connectionPoolerSpec := effectiveConnectionPoolerSpec(spec, connectionPooler.Role)
 	podTemplate, err := c.generateConnectionPoolerPodTemplate(connectionPooler.Role)
 
 	numberOfInstances := connectionPoolerSpec.NumberOfInstances
@@ -1177,21 +1203,15 @@ func (c *Cluster) syncConnectionPoolerWorker(oldSpec, newSpec *acidv1.Postgresql
 		var oldConnectionPooler *acidv1.ConnectionPooler
 
 		if oldSpec != nil {
-			oldConnectionPooler = oldSpec.Spec.ConnectionPooler
+			oldConnectionPooler = effectiveConnectionPoolerSpec(&oldSpec.Spec, role)
 		}
 
-		newConnectionPooler := newSpec.Spec.ConnectionPooler
+		newConnectionPooler := effectiveConnectionPoolerSpec(&newSpec.Spec, role)
 		// sync implementation below assumes that both old and new specs are
-		// not nil, but it can happen. To avoid any confusion like updating a
-		// deployment because the specification changed from nil to an empty
-		// struct (that was initialized somewhere before) replace any nil with
-		// an empty spec.
+		// not nil. effectiveConnectionPoolerSpec never returns nil, but
+		// oldConnectionPooler is still nil when there is no old spec at all.
 		if oldConnectionPooler == nil {
 			oldConnectionPooler = &acidv1.ConnectionPooler{}
-		}
-
-		if newConnectionPooler == nil {
-			newConnectionPooler = &acidv1.ConnectionPooler{}
 		}
 
 		var specSync, updateDeployment bool

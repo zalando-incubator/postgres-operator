@@ -185,6 +185,20 @@ spec:
 #        cpu: "1"
 #        memory: 100Mi
 
+# override connection pooler properties for the replica pooler only,
+# anything left out here is inherited from connectionPooler
+#  replicaConnectionPooler:
+#    numberOfInstances: 2
+#    mode: "session"
+#    maxDBConnections: 60
+#    resources:
+#      requests:
+#        cpu: 300m
+#        memory: 100Mi
+#      limits:
+#        cpu: "1"
+#        memory: 100Mi
+
   initContainers:
   - name: date
     image: busybox
