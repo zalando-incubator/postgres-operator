@@ -4845,6 +4845,15 @@ func TestSecurityContextOptions(t *testing.T) {
 		assert.Nil(t, sts.Spec.Template.Spec.InitContainers[0].SecurityContext.AllowPrivilegeEscalation)
 	})
 
+	t.Run("invalid seccomp profile fails the statefulset generation", func(t *testing.T) {
+		spec := newSpec()
+		opConfig := newConfig()
+		opConfig.SpiloSeccompProfile = "runtime/default"
+		cluster := New(Config{OpConfig: opConfig}, k8sutil.KubernetesClient{}, acidv1.Postgresql{}, logger, eventRecorder)
+		_, err := cluster.generateStatefulSet(&spec)
+		assert.ErrorContains(t, err, "spilo_seccomp_profile")
+	})
+
 	t.Run("options apply to the logical backup job", func(t *testing.T) {
 		opConfig := newConfig()
 		opConfig.SpiloRunAsNonRoot = util.True()

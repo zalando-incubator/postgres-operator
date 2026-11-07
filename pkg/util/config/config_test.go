@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	v1 "k8s.io/api/core/v1"
 )
 
 func TestMain(m *testing.M) {
@@ -368,4 +370,39 @@ func TestSecurityContextOptionsFromMap(t *testing.T) {
 		}
 	}()
 	NewFromMap(map[string]string{"spilo_seccomp_profile": "runtime/default"})
+}
+
+func TestSeccompProfile(t *testing.T) {
+	localhostProfile := "profiles/postgres.json"
+	for _, tt := range []struct {
+		profile  string
+		expected *v1.SeccompProfile
+		wantErr  bool
+	}{
+		{profile: "", expected: nil},
+		{profile: "RuntimeDefault", expected: &v1.SeccompProfile{Type: v1.SeccompProfileTypeRuntimeDefault}},
+		{profile: "Unconfined", expected: &v1.SeccompProfile{Type: v1.SeccompProfileTypeUnconfined}},
+		{profile: "Localhost/profiles/postgres.json", expected: &v1.SeccompProfile{Type: v1.SeccompProfileTypeLocalhost, LocalhostProfile: &localhostProfile}},
+		{profile: "Localhost/", wantErr: true},
+		{profile: "Localhost", wantErr: true},
+		{profile: "runtime/default", wantErr: true},
+		{profile: "runtimedefault", wantErr: true},
+		{profile: "RuntimeDefault ", wantErr: true},
+	} {
+		t.Run(tt.profile, func(t *testing.T) {
+			got, err := SeccompProfile(tt.profile)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected an error, got %v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
 }

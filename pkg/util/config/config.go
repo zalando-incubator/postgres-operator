@@ -2,7 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	"regexp"
 	"strings"
 
 	"fmt"
@@ -13,8 +12,23 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// seccompProfileRegexp matches the supported values of spilo_seccomp_profile
-var seccompProfileRegexp = regexp.MustCompile(`^(RuntimeDefault|Unconfined|Localhost/.+)?$`)
+// SeccompProfile converts a seccomp profile option (RuntimeDefault, Unconfined
+// or Localhost/<profile>) into its API representation. An empty value means no
+// profile is set.
+func SeccompProfile(profile string) (*v1.SeccompProfile, error) {
+	localhostPrefix := string(v1.SeccompProfileTypeLocalhost) + "/"
+	switch {
+	case profile == "":
+		return nil, nil
+	case profile == string(v1.SeccompProfileTypeRuntimeDefault), profile == string(v1.SeccompProfileTypeUnconfined):
+		return &v1.SeccompProfile{Type: v1.SeccompProfileType(profile)}, nil
+	case strings.HasPrefix(profile, localhostPrefix) && len(profile) > len(localhostPrefix):
+		localhostProfile := strings.TrimPrefix(profile, localhostPrefix)
+		return &v1.SeccompProfile{Type: v1.SeccompProfileTypeLocalhost, LocalhostProfile: &localhostProfile}, nil
+	default:
+		return nil, fmt.Errorf("invalid seccomp profile %q, expected RuntimeDefault, Unconfined or Localhost/<profile>", profile)
+	}
+}
 
 // CRD describes CustomResourceDefinition specific configuration parameters
 type CRD struct {
@@ -340,9 +354,8 @@ func validate(cfg *Config) (err error) {
 		err = fmt.Errorf(msg, cfg.ConnectionPooler.User)
 	}
 
-	if !seccompProfileRegexp.MatchString(cfg.SpiloSeccompProfile) {
-		err = fmt.Errorf("spilo_seccomp_profile %q is invalid, expected RuntimeDefault, Unconfined or Localhost/<profile>",
-			cfg.SpiloSeccompProfile)
+	if _, seccompErr := SeccompProfile(cfg.SpiloSeccompProfile); seccompErr != nil {
+		err = fmt.Errorf("spilo_seccomp_profile: %v", seccompErr)
 	}
 
 	return

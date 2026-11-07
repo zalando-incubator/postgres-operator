@@ -506,20 +506,6 @@ func generateCapabilities(capabilities []string) *v1.Capabilities {
 	return nil
 }
 
-// generateSeccompProfile converts the configured seccomp profile
-// (RuntimeDefault, Unconfined or Localhost/<profile>) into its API representation.
-func generateSeccompProfile(profile string) *v1.SeccompProfile {
-	switch {
-	case profile == "":
-		return nil
-	case strings.HasPrefix(profile, string(v1.SeccompProfileTypeLocalhost)+"/"):
-		localhostProfile := strings.TrimPrefix(profile, string(v1.SeccompProfileTypeLocalhost)+"/")
-		return &v1.SeccompProfile{Type: v1.SeccompProfileTypeLocalhost, LocalhostProfile: &localhostProfile}
-	default:
-		return &v1.SeccompProfile{Type: v1.SeccompProfileType(profile)}
-	}
-}
-
 // applyContainerSecurityDefaults fills the container security context fields
 // that cannot be set on pod level (dropped capabilities and disallowed privilege
 // escalation) from the operator configuration. Fields a container already sets
@@ -935,7 +921,11 @@ func (c *Cluster) generatePodTemplate(
 	// pod level settings apply to all containers, including init containers,
 	// unless a container overrides them in its own security context
 	securityContext.RunAsNonRoot = c.OpConfig.Resources.SpiloRunAsNonRoot
-	securityContext.SeccompProfile = generateSeccompProfile(c.OpConfig.Resources.SpiloSeccompProfile)
+	seccompProfile, err := config.SeccompProfile(c.OpConfig.Resources.SpiloSeccompProfile)
+	if err != nil {
+		return nil, fmt.Errorf("could not generate pod security context: spilo_seccomp_profile: %v", err)
+	}
+	securityContext.SeccompProfile = seccompProfile
 
 	containers = c.applyContainerSecurityDefaults(containers)
 	initContainers = c.applyContainerSecurityDefaults(initContainers)
