@@ -121,6 +121,11 @@ func (c *Controller) importConfigurationFromCRD(fromCRD *acidv1.OperatorConfigur
 	result.DeleteAnnotationNameKey = fromCRD.Kubernetes.DeleteAnnotationNameKey
 	result.NodeReadinessLabel = fromCRD.Kubernetes.NodeReadinessLabel
 	result.NodeReadinessLabelMerge = fromCRD.Kubernetes.NodeReadinessLabelMerge
+	// an explicitly empty list disables the check, so only fall back to the default when unset
+	result.NodeUnreadyTaints = fromCRD.Kubernetes.NodeUnreadyTaints
+	if result.NodeUnreadyTaints == nil {
+		result.NodeUnreadyTaints = []string{"karpenter.sh/disrupted"}
+	}
 	result.PodPriorityClassName = fromCRD.Kubernetes.PodPriorityClassName
 	result.PodManagementPolicy = util.Coalesce(fromCRD.Kubernetes.PodManagementPolicy, "ordered_ready")
 	result.PersistentVolumeClaimRetentionPolicy = fromCRD.Kubernetes.PersistentVolumeClaimRetentionPolicy

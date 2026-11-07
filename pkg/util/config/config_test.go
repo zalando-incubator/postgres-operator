@@ -335,3 +335,21 @@ func TestNewFromMap(t *testing.T) {
 		})
 	}
 }
+
+func TestNodeUnreadyTaintsFromMap(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		input    map[string]string
+		expected []string
+	}{
+		{name: "defaults to the Karpenter disruption taint", input: map[string]string{}, expected: []string{"karpenter.sh/disrupted"}},
+		{name: "empty value disables the check", input: map[string]string{"node_unready_taints": ""}, expected: nil},
+		{name: "custom taint keys", input: map[string]string{"node_unready_taints": "foo,bar"}, expected: []string{"foo", "bar"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := NewFromMap(tt.input).NodeUnreadyTaints; !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
+}

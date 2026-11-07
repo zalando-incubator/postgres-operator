@@ -26,7 +26,7 @@ func newNodeTestController() *Controller {
 	return controller
 }
 
-func makeNode(labels map[string]string, isSchedulable bool) *v1.Node {
+func makeNode(labels map[string]string, isSchedulable bool, taints ...v1.Taint) *v1.Node {
 	return &v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: v1.NamespaceDefault,
@@ -34,6 +34,7 @@ func makeNode(labels map[string]string, isSchedulable bool) *v1.Node {
 		},
 		Spec: v1.NodeSpec{
 			Unschedulable: !isSchedulable,
+			Taints:        taints,
 		},
 	}
 }
@@ -99,6 +100,62 @@ func TestNodeIsReady(t *testing.T) {
 			t.Errorf("%s: expected response %t does not match the actual %t for the node %#v",
 				testName, tt.out, isReady, tt.in)
 		}
+	}
+}
+
+func TestNodeIsReadyWithUnreadyTaints(t *testing.T) {
+	disruptedTaint := v1.Taint{Key: "karpenter.sh/disrupted", Effect: v1.TaintEffectNoSchedule}
+	otherTaint := v1.Taint{Key: "dedicated", Value: "postgres", Effect: v1.TaintEffectNoSchedule}
+	unreadyTaints := []string{"karpenter.sh/disrupted"}
+
+	tests := []struct {
+		name           string
+		in             *v1.Node
+		unreadyTaints  []string
+		readinessLabel map[string]string
+		out            bool
+	}{
+		{
+			name:          "schedulable node with unready taint is not ready",
+			in:            makeNode(map[string]string{"foo": "bar"}, true, disruptedTaint),
+			unreadyTaints: unreadyTaints,
+			out:           false,
+		},
+		{
+			name:          "schedulable node with other taint is ready",
+			in:            makeNode(map[string]string{"foo": "bar"}, true, otherTaint),
+			unreadyTaints: unreadyTaints,
+			out:           true,
+		},
+		{
+			name:          "unready taint is ignored when not configured",
+			in:            makeNode(map[string]string{"foo": "bar"}, true, disruptedTaint),
+			unreadyTaints: nil,
+			out:           true,
+		},
+		{
+			name:           "unready taint wins over readiness label",
+			in:             makeNode(map[string]string{readyLabel: readyValue}, true, otherTaint, disruptedTaint),
+			unreadyTaints:  unreadyTaints,
+			readinessLabel: map[string]string{readyLabel: readyValue},
+			out:            false,
+		},
+		{
+			name:          "master node with unready taint is ready",
+			in:            makeNode(map[string]string{"master": "true"}, true, disruptedTaint),
+			unreadyTaints: unreadyTaints,
+			out:           true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := newNodeTestController()
+			c.opConfig.NodeUnreadyTaints = tt.unreadyTaints
+			c.opConfig.NodeReadinessLabel = tt.readinessLabel
+			if isReady := c.nodeIsReady(tt.in); isReady != tt.out {
+				t.Errorf("expected %t, got %t for node %#v", tt.out, isReady, tt.in)
+			}
+		})
 	}
 }
 

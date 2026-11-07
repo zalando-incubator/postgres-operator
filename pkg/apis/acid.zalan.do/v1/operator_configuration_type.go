@@ -133,6 +133,8 @@ type KubernetesMetaConfiguration struct {
 	// +kubebuilder:validation:Enum=AND;OR
 	NodeReadinessLabelMerge string            `json:"node_readiness_label_merge,omitempty"`
 	CustomPodAnnotations    map[string]string `json:"custom_pod_annotations,omitempty"`
+	// +kubebuilder:default={"karpenter.sh/disrupted"}
+	NodeUnreadyTaints []string `json:"node_unready_taints,omitempty"`
 	// TODO: use a proper toleration structure?
 	PodToleration map[string]string `json:"toleration,omitempty"`
 	// namespaced name of the ConfigMap with environment variables to populate on every pod

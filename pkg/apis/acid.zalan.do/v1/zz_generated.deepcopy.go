@@ -277,6 +277,11 @@ func (in *KubernetesMetaConfiguration) DeepCopyInto(out *KubernetesMetaConfigura
 			(*out)[key] = val
 		}
 	}
+	if in.NodeUnreadyTaints != nil {
+		in, out := &in.NodeUnreadyTaints, &out.NodeUnreadyTaints
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.PodToleration != nil {
 		in, out := &in.PodToleration, &out.PodToleration
 		*out = make(map[string]string, len(*in))

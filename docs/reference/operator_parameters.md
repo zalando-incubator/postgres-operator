@@ -497,6 +497,17 @@ configuration they are grouped under the `kubernetes` key.
   See [user docs](../user.md#use-taints-tolerations-and-node-affinity-for-dedicated-postgresql-nodes)
   for more details. Default is "OR".
 
+* **node_unready_taints**
+  list of taint keys which mark a node as being decommissioned. When a node
+  gets one of these taints (with any value or effect), the operator moves the
+  master pods off it, just as it does for unschedulable (cordoned) nodes. A
+  taint takes precedence over the `node_readiness_label`. This is useful with
+  node autoscalers that do not cordon nodes before draining them, e.g.
+  [Karpenter](https://karpenter.sh/) marks disrupted nodes with the
+  `karpenter.sh/disrupted` taint. The default is `karpenter.sh/disrupted`.
+  Set it to an empty value (an empty list in the CRD-based configuration) to
+  disable the check.
+
 * **toleration**
   a dictionary that should contain `key`, `operator`, `value` and
   `effect` keys. In that case, the operator defines a pod toleration

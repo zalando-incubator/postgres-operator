@@ -541,3 +541,35 @@ func TestAllPodsRunning(t *testing.T) {
 		})
 	}
 }
+
+func TestPodIsEndOfLife(t *testing.T) {
+	disruptedTaint := v1.Taint{Key: "karpenter.sh/disrupted", Effect: v1.TaintEffectNoSchedule}
+	for _, tt := range []struct {
+		name          string
+		node          v1.Node
+		unreadyTaints []string
+		expected      bool
+	}{
+		{name: "schedulable node", node: v1.Node{}, expected: false},
+		{name: "cordoned node", node: v1.Node{Spec: v1.NodeSpec{Unschedulable: true}}, expected: true},
+		{name: "unready taint not configured", node: v1.Node{Spec: v1.NodeSpec{Taints: []v1.Taint{disruptedTaint}}}, expected: false},
+		{name: "node with unready taint", node: v1.Node{Spec: v1.NodeSpec{Taints: []v1.Taint{disruptedTaint}}},
+			unreadyTaints: []string{"karpenter.sh/disrupted"}, expected: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.node.Name = "node-1"
+			client := k8sfake.NewSimpleClientset(&tt.node)
+			opConfig := config.Config{}
+			opConfig.NodeUnreadyTaints = tt.unreadyTaints
+			c := New(Config{OpConfig: opConfig}, k8sutil.KubernetesClient{NodesGetter: client.CoreV1()},
+				acidv1.Postgresql{}, logger, record.NewFakeRecorder(1))
+			eol, err := c.podIsEndOfLife(&v1.Pod{Spec: v1.PodSpec{NodeName: "node-1"}})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if eol != tt.expected {
+				t.Errorf("expected end-of-life %t, got %t", tt.expected, eol)
+			}
+		})
+	}
+}
