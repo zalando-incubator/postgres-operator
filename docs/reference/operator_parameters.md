@@ -455,7 +455,10 @@ configuration they are grouped under the `kubernetes` key.
   array of infrastructure role definitions which reference existing secrets
   and specify the key names from which user name, password and role membership
   are extracted. For the ConfigMap this has to be a string which allows
-  referencing only one infrastructure roles secret. The default is empty.
+  referencing only one infrastructure roles secret, e.g.
+  `secretname:namespace/name,userkey:user,passwordkey:password,rolekey:inrole`.
+  Read at operator start only, see [infrastructure roles](../user.md#infrastructure-roles).
+  The default is empty.
 
 * **inherited_annotations**
   list of annotation keys that can be inherited from the cluster manifest, and
