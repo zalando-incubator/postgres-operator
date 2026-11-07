@@ -490,7 +490,7 @@ configuration:
     spilo_runasuser: 101
     spilo_runasgroup: 103
     spilo_fsgroup: 103
-    spilo_runasnonroot: true
+    spilo_run_as_non_root: true
     spilo_allow_privilege_escalation: false
     spilo_seccomp_profile: RuntimeDefault
     drop_pod_capabilities:
@@ -502,7 +502,13 @@ Spilo image (`103`), otherwise Spilo's cron jobs (e.g. WAL-G basebackups) are
 not executed. Running as non-root, cron works without privilege escalation,
 only the optional `renice` job is skipped. Settings defined in the security
 context of a sidecar or init container take precedence, and privileged
-containers are left untouched.
+containers are left untouched. With `spilo_run_as_non_root` enabled, clusters
+must not override `spiloRunAsUser` with `0` in their manifest.
+
+When these fields are enforced by mutating admission webhooks (e.g. Kyverno),
+configure the same values in the operator. Otherwise the StatefulSet generated
+by the operator differs from the mutated one and the operator triggers a
+rolling update of the cluster on every sync.
 
 Changing these options updates the pod template of every Postgres cluster,
 which triggers a rolling update of all pods.

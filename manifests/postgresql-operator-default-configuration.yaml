@@ -126,7 +126,7 @@ configuration:
     # spilo_runasuser: 101
     # spilo_runasgroup: 103
     # spilo_fsgroup: 103
-    # spilo_runasnonroot: true
+    # spilo_run_as_non_root: true
     # spilo_seccomp_profile: RuntimeDefault
     spilo_privileged: false
     storage_resize_mode: pvc

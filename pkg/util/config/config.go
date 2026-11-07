@@ -58,7 +58,7 @@ type Resources struct {
 	SpiloAllowPrivilegeEscalation *bool               `name:"spilo_allow_privilege_escalation" default:"true"`
 	AdditionalPodCapabilities     []string            `name:"additional_pod_capabilities" default:""`
 	DropPodCapabilities           []string            `name:"drop_pod_capabilities" default:""`
-	SpiloRunAsNonRoot             *bool               `name:"spilo_runasnonroot"`
+	SpiloRunAsNonRoot             *bool               `name:"spilo_run_as_non_root"`
 	SpiloSeccompProfile           string              `name:"spilo_seccomp_profile"`
 	ClusterLabels                 map[string]string   `name:"cluster_labels" default:"application:spilo"`
 	InheritedLabels               []string            `name:"inherited_labels" default:""`

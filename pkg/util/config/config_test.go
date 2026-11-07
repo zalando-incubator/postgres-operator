@@ -346,12 +346,12 @@ func TestSecurityContextOptionsFromMap(t *testing.T) {
 	}
 
 	cfg = NewFromMap(map[string]string{
-		"spilo_runasnonroot":    "true",
+		"spilo_run_as_non_root": "true",
 		"spilo_seccomp_profile": "Localhost/profiles/postgres.json",
 		"drop_pod_capabilities": "ALL",
 	})
 	if cfg.SpiloRunAsNonRoot == nil || !*cfg.SpiloRunAsNonRoot {
-		t.Errorf("expected spilo_runasnonroot to be true")
+		t.Errorf("expected spilo_run_as_non_root to be true")
 	}
 	if cfg.SpiloSeccompProfile != "Localhost/profiles/postgres.json" {
 		t.Errorf("unexpected spilo_seccomp_profile %q", cfg.SpiloSeccompProfile)

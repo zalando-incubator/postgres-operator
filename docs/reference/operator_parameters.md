@@ -564,10 +564,16 @@ configuration they are grouped under the `kubernetes` key.
   `additional_pod_capabilities` are still added to the Spilo container. The
   default is empty.
 
-* **spilo_runasnonroot**
+* **spilo_run_as_non_root**
   sets `runAsNonRoot` in the pod security context of the Spilo and logical
   backup pods, so the kubelet refuses to start any container running as root.
-  Requires a non-root `spilo_runasuser`. The default is empty (not set).
+  It is also set in the security context of the Spilo, sidecar, init and logical
+  backup containers, unless they define it themselves or run privileged. This
+  keeps the generated pod template in sync with admission webhooks (e.g.
+  Kyverno) enforcing `runAsNonRoot`, which would otherwise trigger a rolling
+  update on every sync. Requires a non-root `spilo_runasuser`: a cluster
+  manifest setting `spiloRunAsUser: 0` will fail to start its pods. The default
+  is empty (not set).
 
 * **spilo_seccomp_profile**
   seccomp profile set in the pod security context of the Spilo and logical

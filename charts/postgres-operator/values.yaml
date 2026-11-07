@@ -232,7 +232,7 @@ configKubernetes:
   # required by cron which needs setuid when Spilo runs as root
   spilo_allow_privilege_escalation: true
   # refuse to start containers of the Spilo pods running as root
-  # spilo_runasnonroot: true
+  # spilo_run_as_non_root: true
   # seccomp profile for the Spilo pods: RuntimeDefault, Unconfined or Localhost/<profile>
   # spilo_seccomp_profile: RuntimeDefault
   # list of capabilities to drop from the containers of the Spilo pods

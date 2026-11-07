@@ -502,11 +502,11 @@ spec:
                     type: integer
                   spilo_privileged:
                     type: boolean
+                  spilo_run_as_non_root:
+                    type: boolean
                   spilo_runasgroup:
                     format: int64
                     type: integer
-                  spilo_runasnonroot:
-                    type: boolean
                   spilo_runasuser:
                     format: int64
                     type: integer

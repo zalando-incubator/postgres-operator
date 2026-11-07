@@ -4738,6 +4738,7 @@ func TestSecurityContextOptions(t *testing.T) {
 					SecurityContext: &v1.SecurityContext{
 						AllowPrivilegeEscalation: util.True(),
 						Capabilities:             &v1.Capabilities{Drop: []v1.Capability{"NET_RAW"}},
+						RunAsNonRoot:             util.False(),
 					},
 				},
 			},
@@ -4784,6 +4785,7 @@ func TestSecurityContextOptions(t *testing.T) {
 		assert.Nil(t, podSpec.SecurityContext.RunAsNonRoot)
 		assert.Nil(t, podSpec.SecurityContext.SeccompProfile)
 		assert.Nil(t, containerByName(podSpec.Containers, constants.PostgresContainerName).SecurityContext.Capabilities)
+		assert.Nil(t, containerByName(podSpec.Containers, constants.PostgresContainerName).SecurityContext.RunAsNonRoot)
 		assert.Nil(t, containerByName(podSpec.Containers, "sidecar").SecurityContext)
 		assert.Equal(t, spec.InitContainers, podSpec.InitContainers)
 	})
@@ -4814,12 +4816,14 @@ func TestSecurityContextOptions(t *testing.T) {
 		} {
 			assert.Equal(t, util.False(), container.SecurityContext.AllowPrivilegeEscalation, "container %s", container.Name)
 			assert.Equal(t, []v1.Capability{"ALL"}, container.SecurityContext.Capabilities.Drop, "container %s", container.Name)
+			assert.Equal(t, util.True(), container.SecurityContext.RunAsNonRoot, "container %s", container.Name)
 		}
 
 		// settings of the container itself win
 		initContainer := containerByName(podSpec.InitContainers, "init-with-own-security-context")
 		assert.Equal(t, util.True(), initContainer.SecurityContext.AllowPrivilegeEscalation)
 		assert.Equal(t, []v1.Capability{"NET_RAW"}, initContainer.SecurityContext.Capabilities.Drop)
+		assert.Equal(t, util.False(), initContainer.SecurityContext.RunAsNonRoot)
 
 		// privileged containers are left untouched
 		privilegedSidecar := containerByName(podSpec.Containers, "privileged-sidecar")
@@ -4872,5 +4876,22 @@ func TestSecurityContextOptions(t *testing.T) {
 		assert.Equal(t, &v1.SeccompProfile{Type: v1.SeccompProfileTypeLocalhost, LocalhostProfile: &localhostProfile}, podSpec.SecurityContext.SeccompProfile)
 		assert.Equal(t, util.False(), podSpec.Containers[0].SecurityContext.AllowPrivilegeEscalation)
 		assert.Equal(t, []v1.Capability{"ALL"}, podSpec.Containers[0].SecurityContext.Capabilities.Drop)
+		assert.Equal(t, util.True(), podSpec.Containers[0].SecurityContext.RunAsNonRoot)
+	})
+
+	t.Run("runAsNonRoot alone is set on pod and container level", func(t *testing.T) {
+		spec := newSpec()
+		opConfig := newConfig()
+		opConfig.SpiloRunAsNonRoot = util.True()
+		cluster := New(Config{OpConfig: opConfig}, k8sutil.KubernetesClient{}, acidv1.Postgresql{}, logger, eventRecorder)
+		sts, err := cluster.generateStatefulSet(&spec)
+		assert.NoError(t, err)
+
+		podSpec := sts.Spec.Template.Spec
+		assert.Equal(t, util.True(), podSpec.SecurityContext.RunAsNonRoot)
+		spiloContainer := containerByName(podSpec.Containers, constants.PostgresContainerName)
+		assert.Equal(t, util.True(), spiloContainer.SecurityContext.RunAsNonRoot)
+		assert.Nil(t, spiloContainer.SecurityContext.Capabilities)
+		assert.Equal(t, util.True(), spiloContainer.SecurityContext.AllowPrivilegeEscalation)
 	})
 }
