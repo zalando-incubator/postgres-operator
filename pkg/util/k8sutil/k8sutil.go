@@ -460,3 +460,16 @@ func ClientMissingObjects() KubernetesClient {
 		ServicesGetter:    &MockServiceNotExistGetter{},
 	}
 }
+
+// NodeHasAnyTaint checks if the node carries a taint with one of the given keys,
+// regardless of the taint's value or effect.
+func NodeHasAnyTaint(node *v1.Node, taintKeys []string) bool {
+	for _, taint := range node.Spec.Taints {
+		for _, key := range taintKeys {
+			if taint.Key == key {
+				return true
+			}
+		}
+	}
+	return false
+}

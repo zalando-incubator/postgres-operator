@@ -180,6 +180,11 @@ configKubernetes:
   # defines how nodeAffinity from manifest should be merged with node_readiness_label
   # node_readiness_label_merge: "OR"
 
+  # taint keys marking a node as being decommissioned, master pods are moved off such nodes
+  # set to an empty list to disable
+  node_unready_taints:
+  - karpenter.sh/disrupted
+
   # namespaced name of the secret containing the OAuth2 token to pass to the teams API
   # oauth_token_secret_name: postgresql-operator
 

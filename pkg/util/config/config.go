@@ -61,6 +61,7 @@ type Resources struct {
 	PodEnvironmentSecret          string              `name:"pod_environment_secret"`
 	NodeReadinessLabel            map[string]string   `name:"node_readiness_label" default:""`
 	NodeReadinessLabelMerge       string              `name:"node_readiness_label_merge" default:"OR"`
+	NodeUnreadyTaints             []string            `name:"node_unready_taints" default:"karpenter.sh/disrupted"`
 	ShmVolume                     *bool               `name:"enable_shm_volume" default:"true"`
 
 	MaxInstances                       int32  `name:"max_instances" default:"-1"`

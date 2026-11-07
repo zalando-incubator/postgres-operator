@@ -593,6 +593,42 @@ affinity will be appended with its own expressions block:
             ...
 ```
 
+## Node unready taints
+
+Some node autoscalers do not cordon a node before draining it. For example,
+[Karpenter](https://karpenter.sh/) only adds the `karpenter.sh/disrupted:NoSchedule`
+taint to nodes it disrupts (drift, expiration, consolidation). Because the
+master PodDisruptionBudget blocks the eviction of master pods, such a node would
+never be drained completely. With the `node_unready_taints` option the operator
+treats nodes carrying one of the given taint keys as being decommissioned and
+moves the master pods off them via switchover, like it does for cordoned nodes.
+By default it contains `karpenter.sh/disrupted`, so Karpenter is supported out
+of the box. Further taint keys can be configured:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-operator
+data:
+  node_unready_taints: "karpenter.sh/disrupted,example.com/decommissioning"
+```
+
+```yaml
+apiVersion: "acid.zalan.do/v1"
+kind: OperatorConfiguration
+metadata:
+  name: postgresql-configuration
+configuration:
+  kubernetes:
+    node_unready_taints:
+    - karpenter.sh/disrupted
+    - example.com/decommissioning
+```
+
+To disable the check, set `node_unready_taints` to an empty string in the
+ConfigMap or to an empty list (`[]`) in the OperatorConfiguration.
+
 ## Enable pod anti affinity
 
 To ensure Postgres pods are running on different topologies, you can use

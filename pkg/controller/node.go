@@ -12,6 +12,7 @@ import (
 
 	"github.com/zalando/postgres-operator/v2/pkg/cluster"
 	"github.com/zalando/postgres-operator/v2/pkg/util"
+	"github.com/zalando/postgres-operator/v2/pkg/util/k8sutil"
 )
 
 func (c *Controller) nodeAdd(obj interface{}) {
@@ -54,14 +55,21 @@ func (c *Controller) nodeUpdate(prev, cur interface{}) {
 }
 
 func (c *Controller) nodeIsReady(node *v1.Node) bool {
-	return (!node.Spec.Unschedulable || (len(c.opConfig.NodeReadinessLabel) > 0 && util.MapContains(node.Labels, c.opConfig.NodeReadinessLabel)) ||
-		util.MapContains(node.Labels, map[string]string{"master": "true"}))
+	if util.MapContains(node.Labels, map[string]string{"master": "true"}) {
+		return true
+	}
+	// a node carrying one of the configured taints (e.g. karpenter.sh/disrupted)
+	// is being decommissioned, even if it was not cordoned
+	if k8sutil.NodeHasAnyTaint(node, c.opConfig.NodeUnreadyTaints) {
+		return false
+	}
+	return !node.Spec.Unschedulable || (len(c.opConfig.NodeReadinessLabel) > 0 && util.MapContains(node.Labels, c.opConfig.NodeReadinessLabel))
 }
 
 func (c *Controller) attemptToMoveMasterPodsOffNode(node *v1.Node) error {
 	nodeName := util.NameFromMeta(node.ObjectMeta)
-	c.logger.Infof("moving pods: node %q became unschedulable and does not have a ready label: %q",
-		nodeName, c.opConfig.NodeReadinessLabel)
+	c.logger.Infof("moving pods: node %q became unschedulable and does not have a ready label %q, or has one of the unready taints %q",
+		nodeName, c.opConfig.NodeReadinessLabel, c.opConfig.NodeUnreadyTaints)
 
 	opts := metav1.ListOptions{
 		LabelSelector: labels.Set(c.opConfig.ClusterLabels).String(),

@@ -116,6 +116,7 @@ data:
   minimal_major_version: "14"
   # node_readiness_label: "status:ready"
   # node_readiness_label_merge: "OR"
+  # node_unready_taints: "karpenter.sh/disrupted"
   oauth_token_secret_name: postgresql-operator
   pam_configuration: "https://info.example.com/oauth2/tokeninfo?access_token= uid realm=/employees"
   pam_role_name: zalandos

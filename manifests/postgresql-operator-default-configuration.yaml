@@ -101,6 +101,8 @@ configuration:
     # node_readiness_label:
     #   status: ready
     # node_readiness_label_merge: "OR"
+    node_unready_taints:
+    - karpenter.sh/disrupted
     oauth_token_secret_name: postgresql-operator
     pdb_master_label_selector: true
     pdb_name_format: "postgres-{cluster}-pdb"

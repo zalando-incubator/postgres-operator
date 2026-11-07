@@ -430,6 +430,12 @@ spec:
                     - AND
                     - OR
                     type: string
+                  node_unready_taints:
+                    default:
+                    - karpenter.sh/disrupted
+                    items:
+                      type: string
+                    type: array
                   oauth_token_secret_name:
                     default: postgres-operator
                     description: namespaced name of the secret containing the OAuth2

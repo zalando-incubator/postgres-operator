@@ -17,6 +17,7 @@ import (
 	acidv1 "github.com/zalando/postgres-operator/v2/pkg/apis/acid.zalan.do/v1"
 	"github.com/zalando/postgres-operator/v2/pkg/spec"
 	"github.com/zalando/postgres-operator/v2/pkg/util"
+	"github.com/zalando/postgres-operator/v2/pkg/util/k8sutil"
 	"github.com/zalando/postgres-operator/v2/pkg/util/patroni"
 	"github.com/zalando/postgres-operator/v2/pkg/util/retryutil"
 )
@@ -590,6 +591,7 @@ func (c *Cluster) podIsEndOfLife(pod *v1.Pod) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return node.Spec.Unschedulable || !util.MapContains(node.Labels, c.OpConfig.NodeReadinessLabel), nil
+	return node.Spec.Unschedulable || !util.MapContains(node.Labels, c.OpConfig.NodeReadinessLabel) ||
+		k8sutil.NodeHasAnyTaint(node, c.OpConfig.NodeUnreadyTaints), nil
 
 }
